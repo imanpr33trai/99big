@@ -1,7 +1,6 @@
-import connection from "../config/connectDB.js";
-import jwt from 'jsonwebtoken'
 import md5 from "md5";
 import request from 'request';
+import connection from "../config/connectDB.js";
 
 import axios from 'axios';
 let timeNow = Date.now();
@@ -632,8 +631,8 @@ const listMyTeam = async (req, res) => {
         });
     };
     let userInfo = user[0];
-    const [f1] = await connection.query('SELECT `id_user`, `phone`, `code`, `invite`,`roses_f`, `rank`, `name_user`,`status`,`total_money`, `time` FROM users WHERE `invite` = ? ORDER BY id DESC', [userInfo.code]);
-    const [mem] = await connection.query('SELECT `id_user`, `phone`, `time` FROM users WHERE `invite` = ? ORDER BY id DESC LIMIT 100', [userInfo.code]);
+    const [f1] = await connection.query('SELECT `id_user`, `phone`, `code`, `invite`,`roses_f`, `rank`, `name_user`,`status`,`total_money`, `time` FROM users WHERE `invite` = ? ORDER BY id_user DESC', [userInfo.code]);
+    const [mem] = await connection.query('SELECT `id_user`, `phone`, `time` FROM users WHERE `invite` = ? ORDER BY id_user DESC LIMIT 100', [userInfo.code]);
     const [total_roses] = await connection.query('SELECT `f1`,`invite`, `code`,`phone`,`time` FROM roses WHERE `invite` = ? ORDER BY id DESC LIMIT 100', [userInfo.code]);
 
     const selectedData = [];
@@ -780,7 +779,7 @@ const recharge = async (req, res) => {
         }
 
         if (type == 'momo') {
-            const sql = `INSERT INTO recharge SET 
+            const sql = `INSERT INTO recharge SET
             id_order = ?,
             transaction_id = ?,
             phone = ?,
@@ -818,7 +817,7 @@ const recharge = async (req, res) => {
             const apiResponse = await axios.post('https://api.ekqr.in/api/create_order', apiData);
 
             if (apiResponse.data.status == true) {
-                const sql = `INSERT INTO recharge SET 
+                const sql = `INSERT INTO recharge SET
                 id_order = ?,
                 transaction_id = ?,
                 phone = ?,
@@ -935,7 +934,7 @@ const addBank = async (req, res) => {
     const [user_bank] = await connection.query('SELECT * FROM user_bank WHERE stk = ? ', [stk]);
     const [user_bank2] = await connection.query('SELECT * FROM user_bank WHERE phone = ? ', [userInfo.phone]);
     if (user_bank.length == 0 && user_bank2.length == 0) {
-        const sql = `INSERT INTO user_bank SET 
+        const sql = `INSERT INTO user_bank SET
         phone = ?,
         name_bank = ?,
         name_user = ?,
@@ -1130,7 +1129,7 @@ const withdrawal3 = async (req, res) => {
                         });
                     } else {
                         let infoBank = user_bank[0];
-                        const sql = `INSERT INTO withdraw SET 
+                        const sql = `INSERT INTO withdraw SET
                     id_order = ?,
                     phone = ?,
                     money = ?,
@@ -1291,7 +1290,7 @@ const transfer = async (req, res) => {
     }
 }
 
-// get transfer balance data 
+// get transfer balance data
 const transferHistory = async (req, res) => {
     let auth = req.cookies.auth;
 
