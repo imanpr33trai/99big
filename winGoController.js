@@ -73,7 +73,7 @@ const rosesPlus = async (auth, money) => {
                     if (rosesF > 0) {
                         await connection.query('UPDATE users SET money = money + ?, roses_f = roses_f + ?, roses_today = roses_today + ? WHERE phone = ? ', [rosesF, rosesF, rosesF, infoF1.phone]);
                         let timeNow = Date.now();
-                        const sql2 = `INSERT INTO roses SET 
+                        const sql2 = `INSERT INTO roses SET
                             phone = ?,
                             code = ?,
                             invite = ?,
@@ -238,7 +238,7 @@ const betWinGo = async (req, res) => {
     let period = winGoNow[0].period;
     let fee = (x * money) * 0.02;
     let total = (x * money) - fee;
-    // console.log(total); 
+    // console.log(total);
     let timeNow = Date.now();
     let check = userInfo.money - total;
 
@@ -334,7 +334,7 @@ const betWinGo = async (req, res) => {
     let checkTime = timerJoin(date.getTime());
 
     if (check >= 0) {
-        const sql = `INSERT INTO minutes_1 SET 
+        const sql = `INSERT INTO minutes_1 SET
         id_product = ?,
         phone = ?,
         code = ?,
@@ -358,7 +358,7 @@ const betWinGo = async (req, res) => {
         await rosesPlus(auth, money * x);
         // const [level] = await connection.query('SELECT * FROM level ');
         // let level0 = level[0];
-        // const sql2 = `INSERT INTO roses SET 
+        // const sql2 = `INSERT INTO roses SET
         // phone = ?,
         // code = ?,
         // invite = ?,
@@ -535,18 +535,18 @@ const addWinGo = async (game) => {
         const [minPlayers] = await connection.query(`SELECT * FROM minutes_1 WHERE status = 0 AND game = "${join}"`);
         if (minPlayers.length >= 2) {
             const betColumns = [
-                // red_small 
+                // red_small
                 { name: 'red_0', bets: ['0', 't', 'd', 'n'] },
                 { name: 'red_2', bets: ['2', 'd', 'n'] },
                 { name: 'red_4', bets: ['4', 'd', 'n'] },
-                // green small 
+                // green small
                 { name: 'green_1', bets: ['1', 'x', 'n'] },
                 { name: 'green_3', bets: ['3', 'x', 'n'] },
-                // green big 
+                // green big
                 { name: 'green_5', bets: ['5', 'x', 't', 'l'] },
                 { name: 'green_7', bets: ['7', 'x', 'l'] },
                 { name: 'green_9', bets: ['9', 'x', 'l'] },
-                // red big 
+                // red big
                 { name: 'red_6', bets: ['6', 'd', 'l'] },
                 { name: 'red_8', bets: ['8', 'd', 'l'] }
             ];
@@ -568,7 +568,7 @@ const addWinGo = async (game) => {
             const colorBets = {
                 red_6: [6],
                 red_8: [8],
-                red_2: [2], //0 removed 
+                red_2: [2], //0 removed
                 red_4: [4],
                 green_3: [3],
                 green_7: [7], //5 removed
@@ -614,7 +614,7 @@ const addWinGo = async (game) => {
 
             const colorBets = {
                 red_big: [6, 8],
-                red_small: [2, 4], //0 removed 
+                red_small: [2, 4], //0 removed
                 green_big: [7, 9], //5 removed
                 green_small: [1, 3],
                 violet_big: [5],
@@ -664,7 +664,7 @@ const addWinGo = async (game) => {
             console.log("Updating result in wingo table: ", result);
             await connection.execute(`UPDATE wingo SET amount = ?,status = ? WHERE period = ? AND game = "${join}"`, [result, 1, period]);
         }
-        const sql = `INSERT INTO wingo SET 
+        const sql = `INSERT INTO wingo SET
         period = ?,
         amount = ?,
         game = ?,
@@ -755,7 +755,7 @@ const handlingWinGo1P = async (typeid) => {
         var nhan_duoc = 0;
         // x - green
         // t - Violet
-        // d - red 
+        // d - red
 
         // Sirf 1-4 aur 6-9 tk hi *9 aana chahiye
         // Aur 0 aur 5 pe *4.5
