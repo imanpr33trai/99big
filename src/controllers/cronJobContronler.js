@@ -1,8 +1,8 @@
-import connection from "../config/connectDB.js";
-import winGoController from "./winGoController.js";
-import k5Controller from "./k5Controller.js";
-import k3Controller from "./k3Controller.js";
 import cron from "node-cron";
+import connection from "../config/connectDB.js";
+import k3Controller from "./k3Controller.js";
+import k5Controller from "./k5Controller.js";
+import winGoController from "./winGoController.js";
 
 const cronJobGame1p = (io) => {
   cron.schedule("*/1 * * * *", async () => {
@@ -34,7 +34,7 @@ const cronJobGame1p = (io) => {
     io.emit("data-server-k3", { data: data3, game: "1" });
   });
 
-  cron.schedule("*/3 * * * *", async () => {
+  cron.schedule("*/1 * * * *", async () => {
     await winGoController.addWinGo(3);
     await winGoController.handlingWinGo1P(3);
     const [winGo1] = await connection.execute(
@@ -63,7 +63,7 @@ const cronJobGame1p = (io) => {
     io.emit("data-server-k3", { data: data3, game: "3" });
   });
 
-  cron.schedule("*/5 * * * *", async () => {
+  cron.schedule("*/1 * * * *", async () => {
     await winGoController.addWinGo(5);
     await winGoController.handlingWinGo1P(5);
     const [winGo1] = await connection.execute(
@@ -92,7 +92,7 @@ const cronJobGame1p = (io) => {
     io.emit("data-server-k3", { data: data3, game: "5" });
   });
 
-  cron.schedule("*/10 * * * *", async () => {
+  cron.schedule("*/1 * * * *", async () => {
     await winGoController.addWinGo(10);
     await winGoController.handlingWinGo1P(10);
     const [winGo1] = await connection.execute(
