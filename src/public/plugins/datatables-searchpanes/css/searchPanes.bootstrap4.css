@@ -178,11 +178,23 @@ div.dtsp-panesContainer div.dataTables_wrapper div.dataTables_scrollBody div.dts
   align-content: flex-start;
   align-items: flex-start;
 }
-div.dtsp-panesContainer div.dataTables_wrapper div.dataTables_scrollBody div.dtsp-nameCont span.dtsp-name,
-div.dtsp-panesContainer div.dataTables_wrapper div.dataTables_scrollBody div.dtsp-nameCont span.dtsp-pill {
+div.dtsp-panesContainer
+  div.dataTables_wrapper
+  div.dataTables_scrollBody
+  div.dtsp-nameCont
+  span.dtsp-name,
+div.dtsp-panesContainer
+  div.dataTables_wrapper
+  div.dataTables_scrollBody
+  div.dtsp-nameCont
+  span.dtsp-pill {
   cursor: default;
 }
-div.dtsp-panesContainer div.dataTables_wrapper div.dataTables_scrollBody div.dtsp-nameCont span.dtsp-name {
+div.dtsp-panesContainer
+  div.dataTables_wrapper
+  div.dataTables_scrollBody
+  div.dtsp-nameCont
+  span.dtsp-name {
   text-overflow: ellipsis;
   overflow: hidden;
   display: inline-block;
@@ -190,7 +202,11 @@ div.dtsp-panesContainer div.dataTables_wrapper div.dataTables_scrollBody div.dts
   white-space: nowrap;
   flex-grow: 1;
 }
-div.dtsp-panesContainer div.dataTables_wrapper div.dataTables_scrollBody div.dtsp-nameCont span.dtsp-pill {
+div.dtsp-panesContainer
+  div.dataTables_wrapper
+  div.dataTables_scrollBody
+  div.dtsp-nameCont
+  span.dtsp-pill {
   display: inline-block;
   background-color: #cfcfcf;
   text-align: center;
@@ -202,7 +218,11 @@ div.dtsp-panesContainer div.dataTables_wrapper div.dataTables_scrollBody div.dts
   font-size: 0.9em;
   padding: 0 4px;
 }
-div.dtsp-panesContainer div.dataTables_wrapper div.dataTables_scrollBody div.dtsp-nameCont span.dtsp-pill:empty {
+div.dtsp-panesContainer
+  div.dataTables_wrapper
+  div.dataTables_scrollBody
+  div.dtsp-nameCont
+  span.dtsp-pill:empty {
   display: none;
 }
 
@@ -232,7 +252,11 @@ div.dtsp-panesContainer div.dtsp-searchPanes div.dtsp-searchPane div.dataTables_
   flex: 1;
   box-sizing: border-box;
 }
-div.dtsp-panesContainer div.dtsp-searchPanes div.dtsp-searchPane div.dataTables_wrapper div.dataTables_filter {
+div.dtsp-panesContainer
+  div.dtsp-searchPanes
+  div.dtsp-searchPane
+  div.dataTables_wrapper
+  div.dataTables_filter {
   display: none;
 }
 div.dtsp-panesContainer div.dtsp-title {
@@ -283,7 +307,10 @@ div.dtsp-panesContainer div.dtsp-searchPane div.dtsp-topRow.dtsp-bordered:hover 
   cursor: pointer !important;
   pointer-events: none;
 }
-div.dtsp-panesContainer div.dtsp-searchPane div.dtsp-topRow.dtsp-bordered:hover input.dtsp-paneInputButton {
+div.dtsp-panesContainer
+  div.dtsp-searchPane
+  div.dtsp-topRow.dtsp-bordered:hover
+  input.dtsp-paneInputButton {
   pointer-events: none;
 }
 div.dtsp-panesContainer div.dtsp-searchPane div.dataTables_wrapper {

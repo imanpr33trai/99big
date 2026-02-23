@@ -1,8 +1,8 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import connection from "./connectDB.js";
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -12,11 +12,11 @@ const __dirname = path.dirname(__filename);
 // Function to create tables from schema.sql
 const createTables = async () => {
   try {
-    const schemaPath = path.join(__dirname, 'schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf8');
+    const schemaPath = path.join(__dirname, "schema.sql");
+    const schema = fs.readFileSync(schemaPath, "utf8");
 
     // Split by semicolons and execute each statement
-    const statements = schema.split(';').filter(stmt => stmt.trim().length > 0);
+    const statements = schema.split(";").filter((stmt) => stmt.trim().length > 0);
 
     for (const statement of statements) {
       await connection.execute(statement);
@@ -30,11 +30,11 @@ const createTables = async () => {
 // Function to insert seed data from seed.sql
 const insertSeedData = async () => {
   try {
-    const seedPath = path.join(__dirname, 'seed.sql');
-    const seed = fs.readFileSync(seedPath, 'utf8');
+    const seedPath = path.join(__dirname, "seed.sql");
+    const seed = fs.readFileSync(seedPath, "utf8");
 
     // Split by semicolons and execute each statement
-    const statements = seed.split(';').filter(stmt => stmt.trim().length > 0);
+    const statements = seed.split(";").filter((stmt) => stmt.trim().length > 0);
 
     for (const statement of statements) {
       await connection.execute(statement);

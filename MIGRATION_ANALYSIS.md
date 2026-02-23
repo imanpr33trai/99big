@@ -41,15 +41,9 @@
 
 ```javascript
 // Current (mysql2)
-const [rows] = await connection.query(
-  "SELECT * FROM users WHERE token = ? AND veri = 1",
-  [auth],
-);
+const [rows] = await connection.query("SELECT * FROM users WHERE token = ? AND veri = 1", [auth]);
 
-await connection.execute("UPDATE users SET money = money + ? WHERE phone = ?", [
-  amount,
-  phone,
-]);
+await connection.execute("UPDATE users SET money = money + ? WHERE phone = ?", [amount, phone]);
 ```
 
 #### After Migration (Prisma)

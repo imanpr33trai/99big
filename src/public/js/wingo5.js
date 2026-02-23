@@ -8,7 +8,7 @@ function showListOrder3(list_orders, x) {
                           </div>
                           <p class="van-empty__description">No Data</p>
                       </div>
-                      `
+                      `,
     );
   }
   let htmls = "";
@@ -16,35 +16,37 @@ function showListOrder3(list_orders, x) {
     return (htmls += `
                       <div data-v-a9660e98="" class="c-tc item van-row">
                           <div data-v-a9660e98="" class="van-col van-col--8">
-                              <div data-v-a9660e98="" class="c-tc goItem">${list_orders.period
-      }</div>
+                              <div data-v-a9660e98="" class="c-tc goItem">${
+                                list_orders.period
+                              }</div>
                           </div>
                           <div data-v-a9660e98="" class="van-col van-col--5">
                               <div data-v-a9660e98="" class="c-tc goItem">
                                   <!---->
-                                  <span data-v-a9660e98="" class="${list_orders.amount % 2 == 0 ? "red" : "green"
-      }"> ${list_orders.amount} </span>
+                                  <span data-v-a9660e98="" class="${
+                                    list_orders.amount % 2 == 0 ? "red" : "green"
+                                  }"> ${list_orders.amount} </span>
                               </div>
                           </div>
                           <div data-v-a9660e98="" class="van-col van-col--5">
                               <div data-v-a9660e98="" class="c-tc goItem">
-                                  <span data-v-a9660e98=""> ${list_orders.amount < 5 ? "Small" : "Big"
-      } </span>
+                                  <span data-v-a9660e98=""> ${
+                                    list_orders.amount < 5 ? "Small" : "Big"
+                                  } </span>
                                   <!---->
                               </div>
                           </div>
                           <div data-v-a9660e98="" class="van-col van-col--6">
                               <div data-v-a9660e98="" class="goItem c-row c-tc c-row-center">
                                   <div data-v-a9660e98="" class="c-tc c-row box c-row-center">
-                                      <span data-v-a9660e98="" class="li ${list_orders.amount % 2 == 0
-        ? "red"
-        : "green"
-      }"></span>
-                                      ${list_orders.amount == 0 ||
-        list_orders.amount == 5
-        ? '<span data-v-a9660e98="" class="li violet"></span>'
-        : ""
-      }
+                                      <span data-v-a9660e98="" class="li ${
+                                        list_orders.amount % 2 == 0 ? "red" : "green"
+                                      }"></span>
+                                      ${
+                                        list_orders.amount == 0 || list_orders.amount == 5
+                                          ? '<span data-v-a9660e98="" class="li violet"></span>'
+                                          : ""
+                                      }
                                   </div>
                               </div>
                           </div>
@@ -59,7 +61,7 @@ var pageno = 0;
 var limit = 10;
 var page = 1;
 socket.on("data-server", function (msg) {
-  if (msg.data[0].game != 'wingo5') return;
+  if (msg.data[0].game != "wingo5") return;
   $(".Loading").fadeIn(0);
   setTimeout(() => {
     let data1 = msg.data[0]; // lấy ra cầu mới nhất
@@ -72,33 +74,17 @@ socket.on("data-server", function (msg) {
     page = 1;
     $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").addClass("block-click");
     $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").removeClass("action");
-    $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-left").css(
-      "color",
-      "#7f7f7f"
-    );
-    $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").removeClass(
-      "block-click"
-    );
+    $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-left").css("color", "#7f7f7f");
+    $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").removeClass("block-click");
     $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").addClass("action");
-    $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-right").css(
-      "color",
-      "#fff"
-    );
+    $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-right").css("color", "#fff");
 
     $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").addClass("block-click");
     $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").removeClass("action");
-    $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-left").css(
-      "color",
-      "#7f7f7f"
-    );
-    $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").removeClass(
-      "block-click"
-    );
+    $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-left").css("color", "#7f7f7f");
+    $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").removeClass("block-click");
     $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").addClass("action");
-    $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-right").css(
-      "color",
-      "#fff"
-    );
+    $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-right").css("color", "#fff");
     var firstGame;
 
     $.ajax({
@@ -114,7 +100,7 @@ socket.on("data-server", function (msg) {
       success: function (response) {
         let data = response.data.gameslist;
         $(".game-list .con-box:eq(1) .page-nav .number").text(
-          "1/" + (response.page ? response.page : '1')
+          "1/" + (response.page ? response.page : "1"),
         );
 
         // Set the value of firstGame to the first game in the gameslist
@@ -148,7 +134,7 @@ socket.on("data-server", function (msg) {
               var myModal_result = document.getElementById("myModal_result");
               var lottery_result = document.getElementById("lottery_result");
               var myModal_result_Period = document.getElementById("myModal_result_Period");
-               if (firstGame.get == 0) {
+              if (firstGame.get == 0) {
                 myModalheader.style.color = "red";
                 myModalheader.style.fontSize = "28px";
                 myModalheader.style.fontWeight = "bold";
@@ -206,7 +192,6 @@ socket.on("data-server", function (msg) {
             showListOrder(list_orders, 0);
             showListOrder_t(list_orders, 2);
           },
-
         });
       },
     });
@@ -286,7 +271,7 @@ $(".reload_money").click(function (e) {
 $(".van-overlay, .foot .left").click(function (e) {
   e.preventDefault();
   $(".van-overlay").fadeOut();
-  $('.van-popup-vf').fadeOut(100);
+  $(".van-popup-vf").fadeOut(100);
   $(".popup-join").css("transform", "translateY(600px)");
   $(".betting-mark .amount-box .li, .multiple-box .li").css({
     "background-color": "rgb(240, 240, 240)",
@@ -601,9 +586,7 @@ $(".game-list .tab .li:eq(0)").click(function (e) {
       let list_orders = response.data.gameslist;
       $(".time-box .info .number").text(response.period);
       $(".page-nav .number").text("1/" + response.page);
-      $(".game-list .con-box:eq(0) .page-nav .number").text(
-        "1/" + response.page
-      );
+      $(".game-list .con-box:eq(0) .page-nav .number").text("1/" + response.page);
       showListOrder(list_orders, 0);
     },
   });
@@ -629,7 +612,7 @@ $(".game-list .tab .li:eq(1)").click(function (e) {
     success: function (response) {
       let data = response.data.gameslist;
       $(".game-list .con-box:eq(1) .page-nav .number").text(
-        "1/" + `${(response.page) ? response.page : '1'}`
+        "1/" + `${response.page ? response.page : "1"}`,
       );
       showListOrder2(data, 1);
     },
@@ -673,11 +656,8 @@ $(".game-list .tab .li:eq(2)").click(function (e) {
       let list_orders = response.data.gameslist;
       $(".time-box .info .number").text(response.period);
       $(".page-nav .number").text("1/" + response.page);
-      $(".game-list .con-box:eq(2) .page-nav .number").text(
-        "1/" + response.page
-      );
+      $(".game-list .con-box:eq(2) .page-nav .number").text("1/" + response.page);
       showListOrder_t(list_orders, 2);
-
     },
   });
 });
@@ -688,7 +668,7 @@ function alertMessJoin(msg) {
                   <div data-v-1dcba851="" class="msg">
                       <div data-v-1dcba851="" class="msg-content v-enter-active v-enter-to" style=""> ${msg} </div>
                   </div>
-                  `
+                  `,
   );
   setTimeout(() => {
     $(".msg .msg-content").removeClass("v-enter-active v-enter-to");
@@ -722,7 +702,12 @@ $(".foot .right").click(function (e) {
       if (response.status === false) return;
       $("#history-order").prepend(response.data);
       $(".total-box .num span").text("₹ " + response.money);
-      socket.emit('data-server_2', { money: x * money, join, time: Date.now(), change: response.change });
+      socket.emit("data-server_2", {
+        money: x * money,
+        join,
+        time: Date.now(),
+        change: response.change,
+      });
     },
   });
 
@@ -754,14 +739,14 @@ function showListOrder(list_orders, x) {
                           </div>
                           <p class="van-empty__description">No Data</p>
                       </div>
-                      `
+                      `,
     );
   }
   function getCurrentDate() {
     const date = new Date();
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
 
     return `${year}${month}${day}`;
   }
@@ -771,38 +756,39 @@ function showListOrder(list_orders, x) {
     return (htmls += `
                       <div data-v-a9660e98="" class="c-tc item van-row">
                           <div data-v-a9660e98="" class="van-col van-col--8">
-                              <div data-v-a9660e98="" class="c-tc goItem">${currentDate}${parseInt(list_orders.period % 100000)
-      }</div>
+                              <div data-v-a9660e98="" class="c-tc goItem">${currentDate}${parseInt(
+                                list_orders.period % 100000,
+                              )}</div>
                           </div>
                           <div data-v-a9660e98="" class="van-col van-col--5">
                           <div data-v-a9660e98="" class="c-tc goItem">
                           <!---->
                             <span data-v-a9660e98=""
-                              class="${list_orders.amount % 2 === 0 ? 'red' : 'green'} ${list_orders.amount === 0 ? 'zero-amount' : list_orders.amount === 5 ? 'five-amount' : ''}"
-                              style="font-size: 28px; font-weight: bolder; ${list_orders.amount === 0 ? 'background: linear-gradient(to bottom, red 50%, #eb43dd 50%); -webkit-background-clip: text; color: transparent;' : list_orders.amount === 5 ? 'background: linear-gradient(to bottom, green 50%, #eb43dd 50%); -webkit-background-clip: text; color: transparent;' : ''}">
+                              class="${list_orders.amount % 2 === 0 ? "red" : "green"} ${list_orders.amount === 0 ? "zero-amount" : list_orders.amount === 5 ? "five-amount" : ""}"
+                              style="font-size: 28px; font-weight: bolder; ${list_orders.amount === 0 ? "background: linear-gradient(to bottom, red 50%, #eb43dd 50%); -webkit-background-clip: text; color: transparent;" : list_orders.amount === 5 ? "background: linear-gradient(to bottom, green 50%, #eb43dd 50%); -webkit-background-clip: text; color: transparent;" : ""}">
                               ${list_orders.amount}
                             </span>
                           </div>
                         </div>
                           <div data-v-a9660e98="" class="van-col van-col--5">
                               <div data-v-a9660e98="" class="c-tc goItem">
-                                  <span data-v-a9660e98=""> ${list_orders.amount < 5 ? "Small" : "Big"
-      } </span>
+                                  <span data-v-a9660e98=""> ${
+                                    list_orders.amount < 5 ? "Small" : "Big"
+                                  } </span>
                                   <!---->
                               </div>
                           </div>
                           <div data-v-a9660e98="" class="van-col van-col--6">
                               <div data-v-a9660e98="" class="goItem c-row c-tc c-row-center">
                                   <div data-v-a9660e98="" class="c-tc c-row box c-row-center">
-                                      <span data-v-a9660e98="" class="li ${list_orders.amount % 2 == 0
-        ? "red"
-        : "green"
-      }"></span>
-                                      ${list_orders.amount == 0 ||
-        list_orders.amount == 5
-        ? '<span data-v-a9660e98="" class="li violet"></span>'
-        : ""
-      }
+                                      <span data-v-a9660e98="" class="li ${
+                                        list_orders.amount % 2 == 0 ? "red" : "green"
+                                      }"></span>
+                                      ${
+                                        list_orders.amount == 0 || list_orders.amount == 5
+                                          ? '<span data-v-a9660e98="" class="li violet"></span>'
+                                          : ""
+                                      }
                                   </div>
                               </div>
                           </div>
@@ -822,7 +808,7 @@ function showListOrder_t(list_orders, x) {
           </div>
           <p class="van-empty__description">No data</p>
         </div>
-      `
+      `,
     );
   }
 
@@ -830,7 +816,6 @@ function showListOrder_t(list_orders, x) {
 
   let amounts = list_orders.map((order) => order.amount);
   let labels = list_orders.map((order) => order.period % 100);
-
 
   htmls = `
     <style>
@@ -846,7 +831,7 @@ function showListOrder_t(list_orders, x) {
    
     <script>
     labels1 = ${JSON.stringify(labels)};
-    amounts1 = [${amounts.join(', ')}];
+    amounts1 = [${amounts.join(", ")}];
     labels1.reverse();
     amounts1.reverse();
     
@@ -951,7 +936,7 @@ function showListOrder2(list_orders, x) {
                           </div>
                           <p class="van-empty__description">No Data</p>
                       </div>
-                      `
+                      `,
     );
   }
   let htmls = "";
@@ -982,21 +967,22 @@ function showListOrder2(list_orders, x) {
     if ((!isNumber(join) && join == "l") || join == "n") {
       checkJoin = `
                       <div data-v-a9660e98="" class="van-image" style="width: 30px; height: 30px;">
-                          <img src="/images/${join == "n" ? "small" : "big"
-        }.png" class="van-image__img">
+                          <img src="/images/${
+                            join == "n" ? "small" : "big"
+                          }.png" class="van-image__img">
                       </div>
                       `;
     } else {
       checkJoin = `
-                      <span data-v-a9660e98="">${isNumber(join) ? join : ""
-        }</span>
+                      <span data-v-a9660e98="">${isNumber(join) ? join : ""}</span>
                       `;
     }
     return (htmls += `
-                      <div data-v-a9660e98="" issuenumber="${list_orders.stage
-      }" addtime="${timerJoin(
-        list_orders.time
-      )}" colour="red" number="6" rowid="${i}" class="hb">
+                      <div data-v-a9660e98="" issuenumber="${
+                        list_orders.stage
+                      }" addtime="${timerJoin(
+                        list_orders.time,
+                      )}" colour="red" number="6" rowid="${i}" class="hb">
                           <div data-v-a9660e98="" class="item c-row">
                               <div data-v-a9660e98="" class="result">
                                   <div data-v-a9660e98="" class="select select-${color}">
@@ -1006,65 +992,73 @@ function showListOrder2(list_orders, x) {
                               <div data-v-a9660e98="" class="c-row c-row-between info">
                                   <div data-v-a9660e98="">
                                       <div data-v-a9660e98="" class="issueName">
-                                          ${parseInt((list_orders.id_product) / 1000000000000000)}${parseInt((list_orders.stage) % 100000)} 
-                                          ${list_orders.status == 1
-        ? '<span data-v-a9660e98="" class="state green">Success</span>'
-        : list_orders.status == 2
-          ? '<span data-v-a9660e98="" class="state red">Fail</span>'
-          : ""
-      }
+                                          ${parseInt(list_orders.id_product / 1000000000000000)}${parseInt(list_orders.stage % 100000)} 
+                                          ${
+                                            list_orders.status == 1
+                                              ? '<span data-v-a9660e98="" class="state green">Success</span>'
+                                              : list_orders.status == 2
+                                                ? '<span data-v-a9660e98="" class="state red">Fail</span>'
+                                                : ""
+                                          }
                                       </div>
                                       <div data-v-a9660e98="" class="tiem">${timerJoin(
-        list_orders.time
-      )}</div>
+                                        list_orders.time,
+                                      )}</div>
                                   </div>
                                   <div data-v-a9660e98="" class="money">
-                                  ${list_orders.status == 1 && list_orders.bet == 0
-        ? '<span data-v-a9660e98="" class="success"> + ' +
-        list_orders.money * 4.5 +
-        " </span>"
-        : list_orders.status == 1 && list_orders.bet == 5
-          ? '<span data-v-a9660e98="" class="success"> + ' +
-          list_orders.money * 4.5 +
-          " </span>"
-          : list_orders.status == 1 && list_orders.result == 0 && list_orders.bet == 'd'
-            ? '<span data-v-a9660e98="" class="success"> + ' +
-            list_orders.money * 1.5 +
-            " </span>"
-            : list_orders.status == 1 && list_orders.bet == 'd'
-              ? '<span data-v-a9660e98="" class="success"> + ' +
-              list_orders.money * 2 +
-              " </span>"
-              : list_orders.status == 1 && list_orders.bet == 't'
-                ? '<span data-v-a9660e98="" class="success"> + ' +
-                list_orders.money * 4.5 +
-                " </span>"
-                : list_orders.status == 1 && list_orders.result == 5 && list_orders.bet == 'x'
-                  ? '<span data-v-a9660e98="" class="success"> + ' +
-                  list_orders.money * 1.5 +
-                  " </span>"
-                  : list_orders.status == 1 && list_orders.bet == 'x'
-                    ? '<span data-v-a9660e98="" class="success"> + ' +
-                    list_orders.money * 2 +
-                    " </span>"
-                    : list_orders.status == 1 && list_orders.bet == 'l'
-                      ? '<span data-v-a9660e98="" class="success"> + ' +
-                      list_orders.money * 2 +
-                      " </span>"
-                      : list_orders.status == 1 && list_orders.bet == 'n'
-                        ? '<span data-v-a9660e98="" class="success"> + ' +
-                        list_orders.money * 2 +
-                        " </span>"
-                        : list_orders.status == 1
-                          ? '<span data-v-a9660e98="" class="success"> + ' +
-                          list_orders.money * 9 +
-                          " </span>"
-                          : list_orders.status == 2
-                            ? '<span data-v-a9660e98="" class="fail"> - ' +
-                            list_orders.money +
-                            "</span>"
-                            : ""
-      }
+                                  ${
+                                    list_orders.status == 1 && list_orders.bet == 0
+                                      ? '<span data-v-a9660e98="" class="success"> + ' +
+                                        list_orders.money * 4.5 +
+                                        " </span>"
+                                      : list_orders.status == 1 && list_orders.bet == 5
+                                        ? '<span data-v-a9660e98="" class="success"> + ' +
+                                          list_orders.money * 4.5 +
+                                          " </span>"
+                                        : list_orders.status == 1 &&
+                                            list_orders.result == 0 &&
+                                            list_orders.bet == "d"
+                                          ? '<span data-v-a9660e98="" class="success"> + ' +
+                                            list_orders.money * 1.5 +
+                                            " </span>"
+                                          : list_orders.status == 1 && list_orders.bet == "d"
+                                            ? '<span data-v-a9660e98="" class="success"> + ' +
+                                              list_orders.money * 2 +
+                                              " </span>"
+                                            : list_orders.status == 1 && list_orders.bet == "t"
+                                              ? '<span data-v-a9660e98="" class="success"> + ' +
+                                                list_orders.money * 4.5 +
+                                                " </span>"
+                                              : list_orders.status == 1 &&
+                                                  list_orders.result == 5 &&
+                                                  list_orders.bet == "x"
+                                                ? '<span data-v-a9660e98="" class="success"> + ' +
+                                                  list_orders.money * 1.5 +
+                                                  " </span>"
+                                                : list_orders.status == 1 && list_orders.bet == "x"
+                                                  ? '<span data-v-a9660e98="" class="success"> + ' +
+                                                    list_orders.money * 2 +
+                                                    " </span>"
+                                                  : list_orders.status == 1 &&
+                                                      list_orders.bet == "l"
+                                                    ? '<span data-v-a9660e98="" class="success"> + ' +
+                                                      list_orders.money * 2 +
+                                                      " </span>"
+                                                    : list_orders.status == 1 &&
+                                                        list_orders.bet == "n"
+                                                      ? '<span data-v-a9660e98="" class="success"> + ' +
+                                                        list_orders.money * 2 +
+                                                        " </span>"
+                                                      : list_orders.status == 1
+                                                        ? '<span data-v-a9660e98="" class="success"> + ' +
+                                                          list_orders.money * 9 +
+                                                          " </span>"
+                                                        : list_orders.status == 2
+                                                          ? '<span data-v-a9660e98="" class="fail"> - ' +
+                                                            list_orders.money +
+                                                            "</span>"
+                                                          : ""
+                                  }
                                   </div>
                               </div>
                           </div>
@@ -1073,57 +1067,61 @@ function showListOrder2(list_orders, x) {
                               <div data-v-a9660e98="" class="tit">Details</div>
                               <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                   <div data-v-a9660e98="">Order ID</div>
-                                  <div data-v-a9660e98="" data-clipboard-text="${list_orders.id_product
-      }" class="tag-read c-row c-row-between c-row-middle">
+                                  <div data-v-a9660e98="" data-clipboard-text="${
+                                    list_orders.id_product
+                                  }" class="tag-read c-row c-row-between c-row-middle">
                                       ${list_orders.id_product}
                                       <img data-v-a9660e98="" width="18px" height="15px" src="/images/copy.png" class="m-l-5">
                                   </div>
                                   </div>
                                   <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                       <div data-v-a9660e98="">Lottery Period</div>
-                                          <div data-v-a9660e98="">${parseInt((list_orders.id_product) / 1000000000000000)}${parseInt((list_orders.stage) % 100000)
-      }</div>
+                                          <div data-v-a9660e98="">${parseInt(list_orders.id_product / 1000000000000000)}${parseInt(
+                                            list_orders.stage % 100000,
+                                          )}</div>
                                       </div>
                                       <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                           <div data-v-a9660e98="">Order Amount</div>
-                                          <div data-v-a9660e98="">${list_orders.money + list_orders.fee
-      }</div>
+                                          <div data-v-a9660e98="">${
+                                            list_orders.money + list_orders.fee
+                                          }</div>
                                       </div>
                                       <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                           <div data-v-a9660e98="">Quantity</div>
-                                          <div data-v-a9660e98="">${list_orders.amount
-      }</div>
+                                          <div data-v-a9660e98="">${list_orders.amount}</div>
                                       </div>
                                       <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                           <div data-v-a9660e98="">Amount After Tax</div>
-                                          <div data-v-a9660e98="" class="red">${list_orders.money
-      }</div>
+                                          <div data-v-a9660e98="" class="red">${
+                                            list_orders.money
+                                          }</div>
                                       </div>
                                       <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                           <div data-v-a9660e98="">Tax</div>
-                                          <div data-v-a9660e98="">${list_orders.fee
-      }</div>
+                                          <div data-v-a9660e98="">${list_orders.fee}</div>
                                       </div>
                                       <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                           <div data-v-a9660e98="">Opening Price</div>
-                                          <div data-v-a9660e98="">${list_orders.result
-      }</div>
+                                          <div data-v-a9660e98="">${list_orders.result}</div>
                                       </div>
                                       <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                           <div data-v-a9660e98="">Result</div>
                                       <div data-v-a9660e98="">
-                                          <div data-v-a9660e98="" style="display: inline-block; margin-left: 8px;">${list_orders.result
-      }</div>
-                                          <div data-v-a9660e98="" style="display: inline-block; margin-left: 8px;">${list_orders.result == 0
-        ? "Red Violet"
-        : list_orders.result == 5
-          ? "Green Violet"
-          : list_orders.result % 2 == 0
-            ? "Red"
-            : "Green"
-      }</div>
-                                          <div data-v-a9660e98="" style="display: inline-block; margin-left: 8px;">${list_orders.amount < 5 ? "Small" : "Big"
-      }</div>
+                                          <div data-v-a9660e98="" style="display: inline-block; margin-left: 8px;">${
+                                            list_orders.result
+                                          }</div>
+                                          <div data-v-a9660e98="" style="display: inline-block; margin-left: 8px;">${
+                                            list_orders.result == 0
+                                              ? "Red Violet"
+                                              : list_orders.result == 5
+                                                ? "Green Violet"
+                                                : list_orders.result % 2 == 0
+                                                  ? "Red"
+                                                  : "Green"
+                                          }</div>
+                                          <div data-v-a9660e98="" style="display: inline-block; margin-left: 8px;">${
+                                            list_orders.amount < 5 ? "Small" : "Big"
+                                          }</div>
                                       </div>
                                   </div>
                                   <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle ">
@@ -1134,57 +1132,72 @@ function showListOrder2(list_orders, x) {
                                   </div>
                                   <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                       <div data-v-a9660e98="">Status</div>
-                                      <div data-v-a9660e98="" class="${list_orders.status == 1
-        ? "green"
-        : list_orders.status == 2
-          ? "red"
-          : ""
-      }">${list_orders.status == 1
-        ? "Success"
-        : list_orders.status == 2
-          ? "Fail"
-          : ""
-      }</div>
+                                      <div data-v-a9660e98="" class="${
+                                        list_orders.status == 1
+                                          ? "green"
+                                          : list_orders.status == 2
+                                            ? "red"
+                                            : ""
+                                      }">${
+                                        list_orders.status == 1
+                                          ? "Success"
+                                          : list_orders.status == 2
+                                            ? "Fail"
+                                            : ""
+                                      }</div>
                                   </div>
                                   <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                       <div data-v-a9660e98="">Win or Loss</div>
-                                      <div data-v-a9660e98="" class="${list_orders.status == 1
-        ? "green"
-        : list_orders.status == 2
-          ? "red"
-          : ""
-      }"> ${list_orders.status == 1 ? "+" : list_orders.status == 2 ? "-" : ""
-      } ${list_orders.status == 0
-        ? ""
-        : list_orders.status == 1 && list_orders.bet == 0
-          ? list_orders.money * 4.5
-          : list_orders.status == 1 && list_orders.bet == 5
-            ? list_orders.money * 1.5
-            : list_orders.status == 1 && list_orders.bet == 't'
-              ? list_orders.money * 4.5
-              : list_orders.status == 1 && list_orders.result == 0 && list_orders.bet == 'd'
-                ? list_orders.money * 1.5
-                : list_orders.status == 1 && list_orders.bet == 'd'
-                  ? list_orders.money * 2
-                  : list_orders.status == 1 && list_orders.bet == 'x'
-                    ? list_orders.money * 1.5
-                    : list_orders.status == 1 && list_orders.result == 5 && list_orders.bet == 'x'
-                      ? list_orders.money * 1.5
-                      : list_orders.status == 1 && list_orders.bet == 'l'
-                        ? list_orders.money * 2
-                        : list_orders.status == 1 && list_orders.bet == 'n'
-                          ? list_orders.money * 2
-                          : list_orders.status == 1
-                            ? list_orders.money * 9
-                            : list_orders.money
-      }
+                                      <div data-v-a9660e98="" class="${
+                                        list_orders.status == 1
+                                          ? "green"
+                                          : list_orders.status == 2
+                                            ? "red"
+                                            : ""
+                                      }"> ${
+                                        list_orders.status == 1
+                                          ? "+"
+                                          : list_orders.status == 2
+                                            ? "-"
+                                            : ""
+                                      } ${
+                                        list_orders.status == 0
+                                          ? ""
+                                          : list_orders.status == 1 && list_orders.bet == 0
+                                            ? list_orders.money * 4.5
+                                            : list_orders.status == 1 && list_orders.bet == 5
+                                              ? list_orders.money * 1.5
+                                              : list_orders.status == 1 && list_orders.bet == "t"
+                                                ? list_orders.money * 4.5
+                                                : list_orders.status == 1 &&
+                                                    list_orders.result == 0 &&
+                                                    list_orders.bet == "d"
+                                                  ? list_orders.money * 1.5
+                                                  : list_orders.status == 1 &&
+                                                      list_orders.bet == "d"
+                                                    ? list_orders.money * 2
+                                                    : list_orders.status == 1 &&
+                                                        list_orders.bet == "x"
+                                                      ? list_orders.money * 1.5
+                                                      : list_orders.status == 1 &&
+                                                          list_orders.result == 5 &&
+                                                          list_orders.bet == "x"
+                                                        ? list_orders.money * 1.5
+                                                        : list_orders.status == 1 &&
+                                                            list_orders.bet == "l"
+                                                          ? list_orders.money * 2
+                                                          : list_orders.status == 1 &&
+                                                              list_orders.bet == "n"
+                                                            ? list_orders.money * 2
+                                                            : list_orders.status == 1
+                                                              ? list_orders.money * 9
+                                                              : list_orders.money
+                                      }
       </div>
                                   </div>
                                   <div data-v-a9660e98="" class="li c-row c-row-between c-row-middle">
                                       <div data-v-a9660e98="">Order Time</div>
-                                      <div data-v-a9660e98="">${timerJoin(
-        list_orders.time
-      )}</div>
+                                      <div data-v-a9660e98="">${timerJoin(list_orders.time)}</div>
                                   </div>
                               </div>
                       </div>
@@ -1215,7 +1228,7 @@ function formateT(params) {
   return result;
 }
 
-function timerJoin(params = '', addHours = 0) {
+function timerJoin(params = "", addHours = 0) {
   let date = "";
   if (params) {
     date = new Date(Number(params));
@@ -1235,19 +1248,7 @@ function timerJoin(params = '', addHours = 0) {
   let minutes = formateT(date.getMinutes());
   let seconds = formateT(date.getSeconds());
   return (
-    years +
-    "-" +
-    months +
-    "-" +
-    days +
-    " " +
-    hours +
-    ":" +
-    minutes +
-    ":" +
-    seconds +
-    ":" +
-    ampm
+    years + "-" + months + "-" + days + " " + hours + ":" + minutes + ":" + seconds + ":" + ampm
   );
 }
 
@@ -1263,7 +1264,9 @@ $.ajax({
   dataType: "json",
   success: function (response) {
     let data = response.data.gameslist;
-    $(".game-list .con-box:eq(1) .page-nav .number").text("1/" + `${(response.page) ? response.page : '1'}`);
+    $(".game-list .con-box:eq(1) .page-nav .number").text(
+      "1/" + `${response.page ? response.page : "1"}`,
+    );
     showListOrder2(data, 1);
   },
 });
@@ -1288,31 +1291,17 @@ $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").click(function (e) {
     success: function (response) {
       if (response.status === false) {
         pageno -= 10;
-        $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").addClass(
-          "block-click"
-        );
-        $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").removeClass(
-          "action"
-        );
-        $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-right").css(
-          "color",
-          "#7f7f7f"
-        );
+        $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").addClass("block-click");
+        $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").removeClass("action");
+        $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-right").css("color", "#7f7f7f");
         alertMessJoin(response.msg);
         return false;
       }
-      $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").removeClass(
-        "block-click"
-      );
+      $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").removeClass("block-click");
       $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").addClass("action");
-      $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-left").css(
-        "color",
-        "#fff"
-      );
+      $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-left").css("color", "#fff");
       page += 1;
-      $(".game-list .con-box:eq(0) .page-nav .number").text(
-        page + "/" + response.page
-      );
+      $(".game-list .con-box:eq(0) .page-nav .number").text(page + "/" + response.page);
       let list_orders = response.data.gameslist;
       $(".time-box .info .number").text(response.period);
       showListOrder(list_orders, 0);
@@ -1321,14 +1310,9 @@ $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").click(function (e) {
 });
 $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").click(function (e) {
   e.preventDefault();
-  $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").removeClass(
-    "block-click"
-  );
+  $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").removeClass("block-click");
   $(".game-list .con-box:eq(0) .page-nav .arr:eq(1)").addClass("action");
-  $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-right").css(
-    "color",
-    "#fff"
-  );
+  $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-right").css("color", "#fff");
   pageno -= 10;
   let pageto = limit;
   $.ajax({
@@ -1343,36 +1327,20 @@ $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").click(function (e) {
     dataType: "json",
     success: function (response) {
       if (page - 1 <= 1) {
-        $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").addClass(
-          "block-click"
-        );
-        $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").removeClass(
-          "action"
-        );
-        $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-left").css(
-          "color",
-          "#7f7f7f"
-        );
+        $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").addClass("block-click");
+        $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").removeClass("action");
+        $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-left").css("color", "#7f7f7f");
       }
       if (response.status === false) {
         pageno = 0;
-        $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").addClass(
-          "block-click"
-        );
-        $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").removeClass(
-          "action"
-        );
-        $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-left").css(
-          "color",
-          "#7f7f7f"
-        );
+        $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").addClass("block-click");
+        $(".game-list .con-box:eq(0) .page-nav .arr:eq(0)").removeClass("action");
+        $(".game-list .con-box:eq(0) .page-nav .van-icon-arrow-left").css("color", "#7f7f7f");
         alertMessJoin(response.msg);
         return false;
       }
       page -= 1;
-      $(".game-list .con-box:eq(0) .page-nav .number").text(
-        page + "/" + response.page
-      );
+      $(".game-list .con-box:eq(0) .page-nav .number").text(page + "/" + response.page);
       let list_orders = response.data.gameslist;
       $(".time-box .info .number").text(response.period);
       showListOrder(list_orders, 0);
@@ -1400,31 +1368,19 @@ $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").click(function (e) {
     success: function (response) {
       if (response.status === false) {
         pageno -= 10;
-        $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").addClass(
-          "block-click"
-        );
-        $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").removeClass(
-          "action"
-        );
-        $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-right").css(
-          "color",
-          "#7f7f7f"
-        );
+        $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").addClass("block-click");
+        $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").removeClass("action");
+        $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-right").css("color", "#7f7f7f");
         alertMessJoin(response.msg);
         return false;
       }
-      $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").removeClass(
-        "block-click"
-      );
+      $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").removeClass("block-click");
       $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").addClass("action");
-      $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-left").css(
-        "color",
-        "#fff"
-      );
+      $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-left").css("color", "#fff");
       page += 1;
       console.log(page);
       $(".game-list .con-box:eq(1) .page-nav .number").text(
-        "1/" + `${(response.page) ? response.page : '1'}`
+        "1/" + `${response.page ? response.page : "1"}`,
       );
       let list_orders = response.data.gameslist;
       $(".time-box .info .number").text(response.period);
@@ -1450,14 +1406,9 @@ $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").click(function (e) {
 });
 $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").click(function (e) {
   e.preventDefault();
-  $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").removeClass(
-    "block-click"
-  );
+  $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").removeClass("block-click");
   $(".game-list .con-box:eq(1) .page-nav .arr:eq(1)").addClass("action");
-  $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-right").css(
-    "color",
-    "#fff"
-  );
+  $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-right").css("color", "#fff");
   pageno -= 10;
   let pageto = limit;
   $.ajax({
@@ -1472,35 +1423,21 @@ $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").click(function (e) {
     dataType: "json",
     success: function (response) {
       if (page - 1 <= 1) {
-        $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").addClass(
-          "block-click"
-        );
-        $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").removeClass(
-          "action"
-        );
-        $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-left").css(
-          "color",
-          "#7f7f7f"
-        );
+        $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").addClass("block-click");
+        $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").removeClass("action");
+        $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-left").css("color", "#7f7f7f");
       }
       if (response.status === false) {
         pageno = 0;
-        $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").addClass(
-          "block-click"
-        );
-        $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").removeClass(
-          "action"
-        );
-        $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-left").css(
-          "color",
-          "#7f7f7f"
-        );
+        $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").addClass("block-click");
+        $(".game-list .con-box:eq(1) .page-nav .arr:eq(0)").removeClass("action");
+        $(".game-list .con-box:eq(1) .page-nav .van-icon-arrow-left").css("color", "#7f7f7f");
         alertMessJoin(response.msg);
         return false;
       }
       page -= 1;
       $(".game-list .con-box:eq(1) .page-nav .number").text(
-        "1/" + `${(response.page) ? response.page : '1'}`
+        "1/" + `${response.page ? response.page : "1"}`,
       );
       let list_orders = response.data.gameslist;
       $(".time-box .info .number").text(response.period);
@@ -1609,36 +1546,39 @@ window.onload = function () {
   }, 1000);
 };
 
-$('.van-notice-bar__wrap .van-notice-bar__content').css({
-  'transition-duration': '48.9715s',
-  'transform': 'translateX(-2448.57px)',
+$(".van-notice-bar__wrap .van-notice-bar__content").css({
+  "transition-duration": "48.9715s",
+  transform: "translateX(-2448.57px)",
 });
 setInterval(() => {
-  $('.van-notice-bar__wrap .van-notice-bar__content').css({
-    'transition-duration': '0s',
-    'transform': 'translateX(0)',
+  $(".van-notice-bar__wrap .van-notice-bar__content").css({
+    "transition-duration": "0s",
+    transform: "translateX(0)",
   });
   setTimeout(() => {
-    $('.van-notice-bar__wrap .van-notice-bar__content').css({
-      'transition-duration': '48.9715s',
-      'transform': 'translateX(-2448.57px)',
+    $(".van-notice-bar__wrap .van-notice-bar__content").css({
+      "transition-duration": "48.9715s",
+      transform: "translateX(-2448.57px)",
     });
   }, 100);
 }, 48000);
 
-$('.van-button--default').click(function (e) {
+$(".van-button--default").click(function (e) {
   e.preventDefault();
-  $('.van-popup-vf, .van-overlay').fadeOut(100);
+  $(".van-popup-vf, .van-overlay").fadeOut(100);
 });
 
-$('.circular').click(function (e) {
+$(".circular").click(function (e) {
   e.preventDefault();
-  $('.van-popup-vf, .van-overlay').fadeIn(100);
+  $(".van-popup-vf, .van-overlay").fadeIn(100);
 });
 
-let selectPageTime = Number($('html').attr("data-dpr"));
+let selectPageTime = Number($("html").attr("data-dpr"));
 console.log(selectPageTime - 1);
-$(`.game-betting .box .item:eq(${selectPageTime - 1})`).addClass('action');
-$(`.game-betting .box .item:eq(${selectPageTime - 1}) .img`).addClass('block-click');
-$(`.game-betting .box .item .img .van-image img`).attr('src', '/images/icon_clock-gerrn.webp');
-$(`.game-betting .box .item:eq(${selectPageTime - 1}) .img .van-image img`).attr('src', '/images/icon_clock-red.webp');
+$(`.game-betting .box .item:eq(${selectPageTime - 1})`).addClass("action");
+$(`.game-betting .box .item:eq(${selectPageTime - 1}) .img`).addClass("block-click");
+$(`.game-betting .box .item .img .van-image img`).attr("src", "/images/icon_clock-gerrn.webp");
+$(`.game-betting .box .item:eq(${selectPageTime - 1}) .img .van-image img`).attr(
+  "src",
+  "/images/icon_clock-red.webp",
+);
