@@ -425,15 +425,15 @@ const add5D = async (game) => {
       `SELECT period FROM 5d WHERE status = 0 AND game = ${game} ORDER BY id DESC LIMIT 1 `,
     );
     const [setting] = await connection.query("SELECT * FROM `admin` ");
-
+    
     if (k5D.length === 0) {
       console.log(`No pending period found for game ${game}, initializing...`);
       // Initialize with a default period if none exists
       const sql = `INSERT INTO 5d SET period = ?, result = ?, game = ?, status = ?, time = ?`;
-      await connection.execute(sql, [period, result2, game, 1, timeNow]);
+      await connection.execute(sql, [10000, 0, game, 0, timeNow]);
       return;
     }
-
+    
     let period = k5D[0].period;
 
     let nextResult = "";
