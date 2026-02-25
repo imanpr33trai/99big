@@ -1,0 +1,14 @@
+export * from "./auth/auth.service";
+export * from "./auth/customerSevice.service";
+export * from "./k3/k3.service";
+export * from "./k3/k3Game.service";
+export * from "./k3/k3Payout.service";
+export * from "./k3/k3Result.service";
+export * from "./k5/5dGame.service";
+export * from "./k5/5dResult.service";
+export * from "./k5/5dValidation.service";
+export * from "./k5/commission.service";
+export * from "./payment/paymentHelpers.service";
+export * from "./payment/upiQr.service";
+export * from "./payment/wowpay.service";
+// export * from "./payment/";

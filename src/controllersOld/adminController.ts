@@ -1,87 +1,86 @@
-import connection from "../config/connectDB.js";
-import jwt from "jsonwebtoken";
-import md5 from "md5";
 import dotenv from "dotenv";
+import md5 from "md5";
+import connection from "../config/connectDB.js";
 dotenv.config();
 
 let timeNow = Date.now();
 
-const adminPage = async (req, res) => {
-  return res.render("manage/index.ejs");
-};
+// const adminPage = async (req, res) => {
+//   return res.render("manage/index.ejs");
+// };
 
-const adminPage3 = async (req, res) => {
-  return res.render("manage/a-index-bet/index3.ejs");
-};
+// const adminPage3 = async (req, res) => {
+//   return res.render("manage/a-index-bet/index3.ejs");
+// };
 
-const adminPage5 = async (req, res) => {
-  return res.render("manage/a-index-bet/index5.ejs");
-};
+// const adminPage5 = async (req, res) => {
+//   return res.render("manage/a-index-bet/index5.ejs");
+// };
 
-const adminPage10 = async (req, res) => {
-  return res.render("manage/a-index-bet/index10.ejs");
-};
+// const adminPage10 = async (req, res) => {
+//   return res.render("manage/a-index-bet/index10.ejs");
+// };
 
-const adminPage5d = async (req, res) => {
-  return res.render("manage/5d.ejs");
-};
+// const adminPage5d = async (req, res) => {
+//   return res.render("manage/5d.ejs");
+// };
 
-const adminPageK3 = async (req, res) => {
-  return res.render("manage/k3.ejs");
-};
+// const adminPageK3 = async (req, res) => {
+//   return res.render("manage/k3.ejs");
+// };
 
-const ctvProfilePage = async (req, res) => {
-  var phone = req.params.phone;
-  return res.render("manage/profileCTV.ejs", { phone });
-};
+// const ctvProfilePage = async (req, res) => {
+//   var phone = req.params.phone;
+//   return res.render("manage/profileCTV.ejs", { phone });
+// };
 
-const giftPage = async (req, res) => {
-  return res.render("manage/giftPage.ejs");
-};
+// const giftPage = async (req, res) => {
+//   return res.render("manage/giftPage.ejs");
+// };
 
-const membersPage = async (req, res) => {
-  return res.render("manage/members.ejs");
-};
+// const membersPage = async (req, res) => {
+//   return res.render("manage/members.ejs");
+// };
 
-const ctvPage = async (req, res) => {
-  return res.render("manage/ctv.ejs");
-};
+// const ctvPage = async (req, res) => {
+//   return res.render("manage/ctv.ejs");
+// };
 
-const infoMember = async (req, res) => {
-  let phone = req.params.id;
-  return res.render("manage/profileMember.ejs", { phone });
-};
+// const infoMember = async (req, res) => {
+//   let phone = req.params.id;
+//   return res.render("manage/profileMember.ejs", { phone });
+// };
 
-const statistical = async (req, res) => {
-  return res.render("manage/statistical.ejs");
-};
+// const statistical = async (req, res) => {
+//   return res.render("manage/statistical.ejs");
+// };
 
-const rechargePage = async (req, res) => {
-  return res.render("manage/recharge.ejs");
-};
+// const rechargePage = async (req, res) => {
+//   return res.render("manage/recharge.ejs");
+// };
 
-const rechargeRecord = async (req, res) => {
-  return res.render("manage/rechargeRecord.ejs");
-};
+// const rechargeRecord = async (req, res) => {
+//   return res.render("manage/rechargeRecord.ejs");
+// };
 
-const withdraw = async (req, res) => {
-  return res.render("manage/withdraw.ejs");
-};
+// const withdraw = async (req, res) => {
+//   return res.render("manage/withdraw.ejs");
+// };
 
-const levelSetting = async (req, res) => {
-  return res.render("manage/levelSetting.ejs");
-};
+// const levelSetting = async (req, res) => {
+//   return res.render("manage/levelSetting.ejs");
+// };
 
-const CreatedSalaryRecord = async (req, res) => {
-  return res.render("manage/CreatedSalaryRecord.ejs");
-};
+// const CreatedSalaryRecord = async (req, res) => {
+//   return res.render("manage/CreatedSalaryRecord.ejs");
+// };
 
-const withdrawRecord = async (req, res) => {
-  return res.render("manage/withdrawRecord.ejs");
-};
-const settings = async (req, res) => {
-  return res.render("manage/settings.ejs");
-};
+// const withdrawRecord = async (req, res) => {
+//   return res.render("manage/withdrawRecord.ejs");
+// };
+// const settings = async (req, res) => {
+//   return res.render("manage/settings.ejs");
+// };
 
 // xác nhận admin
 const middlewareAdminController = async (req, res, next) => {
@@ -1249,7 +1248,7 @@ const register = async (req, res) => {
         status: false,
       });
     } else {
-      const sql = `INSERT INTO users SET 
+      const sql = `INSERT INTO users SET
             id_user = ?,
             phone = ?,
             name_user = ?,
