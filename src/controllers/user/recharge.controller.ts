@@ -1,154 +1,138 @@
-import axios from "axios";
-import { Request, Response } from "express";
-import {
-  helperFormatTime,
-  helperGenerateOrderId,
-  helperGetCurrentTimestamp,
-} from "../helpers/common.helpers";
-import {
-  paymentQueryCreateRecharge,
-  paymentQueryFindRechargeByPhoneAndStatus,
-  paymentQueryUpdateRechargeStatus,
-} from "../queries/payment.queries";
-import { userQueryFindByToken } from "../queries/user.queries";
-import { UserApiResponse, UserRechargeInput } from "../types/user.types";
 
-const MINIMUM_MONEY = parseInt(process.env.MINIMUM_MONEY || "300");
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { UserApiResponse, UserRechargeSchema, DepositStatus, PaymentMethodType } from '../../types/user.types';
+import { findUserByToken, deletePendingDeposits, createDeposit } from '../../db/user.queries';
+import { generateOrderId, getCurrentTimeForTodayField } from '../../utils/user.helpers';
+import { getMinimumDepositAmount } from '../../services/payment/paymentHelpers.service';
+import { initiateEKQRPayment, getUPIIntentLinks } from '../../services/payment/upiGateway.service';
 
-export const rechargeController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const auth = req.cookies.auth;
-  const { money, type, typeid } = (req as any).validatedData as UserRechargeInput;
+/\*\*
 
+- Initiate recharge/deposit
+  \*/
+  export const rechargeHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (type !== "cancel") {
-      if (!auth || !money || money < MINIMUM_MONEY - 1) {
-        res.status(200).json({
-          message: "Failed",
-          status: false,
-          timeStamp: timeNow,
-        } as UserApiResponse);
-        return;
-      }
-    }
+  const parsed = UserRechargeSchema.safeParse(req.body);
+  if (!parsed.success) {
+  res.status(400).json({
+  message: parsed.error.errors.map(e => e.message).join(', '),
+  status: false,
+  timeStamp: Date.now(),
+  });
+  return;
+  }
 
-    const user = await userQueryFindByToken(auth);
-    if (!user) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+        const { money, type } = parsed.data;
+        const auth = req.cookies.auth;
+        const timeNow = new Date().toISOString();
 
-    if (type === "cancel") {
-      await paymentQueryUpdateRechargeStatus(typeid || "", 2);
-      res.status(200).json({
-        message: "Cancelled order successfully",
-        status: true,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const pendingRecharge = await paymentQueryFindRechargeByPhoneAndStatus(user.phone, 0);
-
-    if (pendingRecharge.length === 0) {
-      const time = Date.now();
-      const checkTime = helperFormatTime(time);
-      const client_transaction_id = helperGenerateOrderId();
-
-      if (type === "momo") {
-        await paymentQueryCreateRecharge({
-          id_order: client_transaction_id,
-          transaction_id: "NULL",
-          phone: user.phone,
-          money: money,
-          type: type,
-          status: 0,
-          today: checkTime,
-          url: "NULL",
-          time: time,
-        });
-
-        const [newRecharge] = await paymentQueryFindRechargeByPhoneAndStatus(user.phone, 0);
-
-        res.status(200).json({
-          message: "Received successfully",
-          datas: newRecharge,
-          status: true,
-          timeStamp: timeNow,
-        } as UserApiResponse);
-        return;
-      }
-
-      const apiData = {
-        key: process.env.PAYMENT_KEY,
-        client_txn_id: client_transaction_id,
-        amount: String(money),
-        p_info: process.env.PAYMENT_INFO,
-        customer_name: user.userName,
-        customer_email: process.env.PAYMENT_EMAIL,
-        customer_mobile: user.phone,
-        redirect_url: `${process.env.APP_BASE_URL}/wallet/rechargerecord`,
-        udf1: process.env.APP_NAME,
-      };
-
-      try {
-        const apiResponse = await axios.post("https://api.ekqr.in/api/create_order", apiData);
-
-        if (apiResponse.data.status === true) {
-          await paymentQueryCreateRecharge({
-            id_order: client_transaction_id,
-            transaction_id: "0",
-            phone: user.phone,
-            money: money,
-            type: type,
-            status: 0,
-            today: checkTime,
-            url: "0",
-            time: timeNow,
-          });
-
-          const [newRecharge] = await paymentQueryFindRechargeByPhoneAndStatus(user.phone, 0);
-
-          res.status(200).json({
-            message: "Received successfully",
-            datas: newRecharge,
-            payment_url: apiResponse.data.data.payment_url,
-            status: true,
-            timeStamp: timeNow,
-          } as UserApiResponse);
-          return;
-        } else {
-          res.status(500).json({
-            message: "Failed to create order",
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
             status: false,
+            timeStamp: timeNow,
           });
           return;
         }
-      } catch (error) {
-        res.status(500).json({
-          message: "API request failed",
-          status: false,
+
+        // Check minimum amount
+        const minimumMoney = getMinimumDepositAmount();
+        if (money < minimumMoney) {
+          res.status(400).json({
+            message: `Minimum deposit amount is ₹${minimumMoney}`,
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Cancel pending deposits unless explicitly cancelling
+        if (type !== 'cancel') {
+          await deletePendingDeposits(db, user.id);
+        }
+
+        // Generate order ID
+        const orderId = generateOrderId();
+
+        // For UPI gateway integration
+        if (type === 'upi_gateway') {
+          try {
+            const ekqrResponse = await initiateEKQRPayment({
+              key: process.env.UPI_GATEWAY_PAYMENT_KEY || '',
+              client_txn_id: orderId,
+              amount: String(money),
+              p_info: process.env.PAYMENT_INFO || '99BigDaddy',
+              customer_name: user.userName,
+              customer_email: process.env.PAYMENT_EMAIL || 'support@99bigdaddy.com',
+              customer_mobile: user.phone,
+              redirect_url: `${process.env.APP_BASE_URL}/wallet/verify/upi`,
+            });
+
+            if (!ekqrResponse.status) {
+              throw new Error(ekqrResponse.msg || 'Gateway error');
+            }
+
+            // Create deposit record
+            const deposit = await createDeposit(db, {
+              userId: user.id,
+              orderId,
+              amount: money,
+              status: DepositStatus.PENDING,
+            });
+
+            const upiLinks = getUPIIntentLinks(ekqrResponse);
+
+            res.status(200).json({
+              message: 'Payment initiated',
+              status: true,
+              data: {
+                order_id: orderId,
+                deposit_id: deposit.id,
+                payment_url: ekqrResponse.data.payment_url,
+                upi_links: upiLinks,
+              },
+              timeStamp: timeNow,
+            });
+            return;
+          } catch (gatewayError) {
+            console.error('Gateway error:', gatewayError);
+            res.status(400).json({
+              message: gatewayError instanceof Error ? gatewayError.message : 'Payment gateway error',
+              status: false,
+              timeStamp: timeNow,
+            });
+            return;
+          }
+        }
+
+        // For manual payments (UPI, USDT)
+        const deposit = await createDeposit(db, {
+          userId: user.id,
+          orderId,
+          amount: money,
+          status: DepositStatus.PENDING,
         });
-        return;
-      }
-    } else {
-      res.status(200).json({
-        message: "Received successfully",
-        datas: pendingRecharge[0],
-        status: true,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-    }
+
+        res.status(200).json({
+          message: 'Deposit request created',
+          status: true,
+          data: {
+            order_id: orderId,
+            deposit_id: deposit.id,
+            amount: money,
+            status: 'pending',
+          },
+          timeStamp: timeNow,
+        });
+
   } catch (error) {
-    console.error("rechargeController error:", error);
-    res.status(500).json({
-      message: "Failed to process recharge",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  console.error('rechargeHandler error:', error);
+  res.status(500).json({
+  message: 'Something went wrong!',
+  status: false,
+  timeStamp: Date.now(),
+  });
   }
-};
+  };

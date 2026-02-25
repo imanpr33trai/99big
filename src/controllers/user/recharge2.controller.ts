@@ -1,62 +1,52 @@
-import { Request, Response } from "express";
-import { helperGetCurrentTimestamp } from "../helpers/common.helpers";
-import {
-  paymentQueryFindBankRecharge,
-  paymentQueryFindRechargeByPhoneAndStatus,
-} from "../queries/payment.queries";
-import { userQueryFindByToken } from "../queries/user.queries";
-import { UserApiResponse } from "../types/user.types";
 
-export const recharge2Controller = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const auth = req.cookies.auth;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { UserApiResponse, DepositStatus } from '../../types/user.types';
+import { findUserByToken, getUserDeposits, getDefaultBankAccount } from '../../db/user.queries';
 
+/\*\*
+
+- Get pending recharge info and bank details
+  \*/
+  export const recharge2Handler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!auth) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+  const auth = req.cookies.auth;
+  const timeNow = Date.now();
 
-    const user = await userQueryFindByToken(auth);
-    if (!user) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
 
-    const [recharge, bank_recharge] = await Promise.all([
-      paymentQueryFindRechargeByPhoneAndStatus(user.phone, 0),
-      paymentQueryFindBankRecharge(),
-    ]);
+        // Get pending deposit
+        const pendingDeposits = await getUserDeposits(db, user.id, DepositStatus.PENDING);
+        const pendingDeposit = pendingDeposits[0];
 
-    if (recharge.length !== 0) {
-      res.status(200).json({
-        message: "Received successfully",
-        datas: recharge[0],
-        infoBank: bank_recharge,
-        status: true,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-    } else {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-    }
+        // Get bank account info for manual transfer
+        const bankAccount = await getDefaultBankAccount(db, user.id);
+
+        res.status(200).json({
+          message: 'Success',
+          status: true,
+          data: {
+            pending_deposit: pendingDeposit || null,
+            bank_info: bankAccount || null,
+            instructions: pendingDeposit ? 'Please complete the payment and submit UTR' : 'No pending deposits',
+          },
+          timeStamp: timeNow,
+        });
+
   } catch (error) {
-    console.error("recharge2Controller error:", error);
-    res.status(500).json({
-      message: "Failed to get recharge info",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  console.error('recharge2Handler error:', error);
+  res.status(500).json({
+  message: 'Something went wrong!',
+  status: false,
+  timeStamp: Date.now(),
+  });
   }
-};
+  };

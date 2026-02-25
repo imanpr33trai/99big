@@ -1,86 +1,89 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import { Pool } from "mysql2/promise";
-import { countUserBets, getUserBets, getUserByToken } from "src/db/k3.queries";
-import { GetMyEmerdListInput, getMyEmerdListSchema } from "src/types/k3.type";
+import { getCurrentK3Session, getUserK3Bets } from "../../db/k3.queries";
+import {
+  AuthenticatedRequest,
+  K3ApiResponse,
+  K3MyBetsResponse,
+  K3MyBetsSchema,
+} from "../../types/k3.types";
 
 export const getMyEmerdListHandler =
   (db: Pool) =>
-  async (req: Request<{}, {}, GetMyEmerdListInput>, res: Response): Promise<void> => {
+  async (
+    req: AuthenticatedRequest,
+    res: Response<K3MyBetsResponse | K3ApiResponse>,
+  ): Promise<void> => {
     try {
-      const auth = req.cookies?.auth;
-      if (!auth) {
-        res.status(401).json({
-          code: 0,
-          msg: "Authentication required",
-          data: { gameslist: [] },
-          status: false,
-        });
-        return;
-      }
-
-      const parseResult = getMyEmerdListSchema.safeParse(req.body);
-      if (!parseResult.success) {
+      // 1. Validate input
+      const parsed = K3MyBetsSchema.safeParse(req.body);
+      if (!parsed.success) {
         res.status(400).json({
-          code: 0,
-          msg: "Invalid parameters",
-          data: { gameslist: [] },
+          message: "Invalid input",
           status: false,
-        });
+          timeStamp: Date.now(),
+        } as K3ApiResponse);
         return;
       }
 
-      const { gameJoin, pageno, pageto } = parseResult.data;
-      const game = Number(gameJoin);
+      const { gameJoin, pageno, pageto } = parsed.data;
 
-      const user = await getUserByToken(db, auth);
+      // 2. Get authenticated user
+      const user = req.user;
       if (!user) {
         res.status(401).json({
-          code: 0,
-          msg: "User not found",
-          data: { gameslist: [] },
+          message: "Unauthorized",
           status: false,
-        });
+          timeStamp: Date.now(),
+        } as K3ApiResponse);
         return;
       }
 
-      const bets = await getUserBets(db, user.phone, game, pageno, pageto);
-      const totalBets = await countUserBets(db, user.phone, game);
+      const gameNum = parseInt(gameJoin);
 
-      if (bets.length === 0) {
-        res.status(200).json({
-          code: 0,
-          msg: "No more data",
-          data: { gameslist: [] },
-          page: 1,
-          status: false,
-        });
-        return;
-      }
+      // 3. Get user's bet history
+      const bets = await getUserK3Bets(db, user.id, gameNum, pageno, pageto);
 
-      const page = Math.ceil(totalBets / 10);
+      // 4. Get current period for context
+      const currentSession = await getCurrentK3Session(db, gameNum);
+      const currentPeriod = currentSession ? parseInt(currentSession.period) : 0;
 
-      // Sanitize data - remove sensitive fields
-      const sanitizedBets = bets.map((bet) => {
-        const { id, phone, code, invite, level, game: gameField, ...others } = bet;
-        return others;
+      // 5. Calculate total winnings for current stage
+      let totalWin = 0;
+      const formattedBets = bets.map((bet) => {
+        if (bet.stage === currentPeriod && bet.status === 1) {
+          totalWin += bet.actualWin;
+        }
+
+        return {
+          id: bet.id,
+          sessionId: bet.sessionId,
+          stage: bet.stage,
+          betAmount: bet.betAmount,
+          selection: bet.selection,
+          betType: bet.betType,
+          result: bet.result,
+          isWin: bet.isWin,
+          status: bet.status,
+          actualWin: bet.actualWin,
+          createdAt: bet.createdAt,
+        };
       });
 
-      res.status(200).json({
-        code: 0,
-        msg: "Get success",
-        data: {
-          gameslist: sanitizedBets,
-        },
-        page,
-        status: true,
-      });
+      // 6. Return paginated response
+      const response: K3MyBetsResponse = {
+        gameslist: formattedBets,
+        page: pageno,
+        totalWin,
+      };
+
+      res.status(200).json(response);
     } catch (error) {
-      console.error("Get my emerd list error:", error);
+      console.error("getMyEmerdListHandler error:", error);
       res.status(500).json({
-        code: 0,
-        msg: "Internal server error",
-        data: { gameslist: [] },
+        message: "Failed to retrieve bet history",
         status: false,
-      });
+        timeStamp: Date.now(),
+      } as K3ApiResponse);
     }
   };

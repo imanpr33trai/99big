@@ -1,96 +1,83 @@
-import { Request, Response } from "express";
-import { helperGetCurrentTimestamp } from "../helpers/common.helpers";
-import {
-  paymentQueryCreateUserBank,
-  paymentQueryFindUserBankByPhone,
-  paymentQueryFindUserBankBySTK,
-  paymentQueryUpdateUserBank,
-  paymentQueryUpdateUserBankSTK,
-} from "../queries/payment.queries";
-import { userQueryFindByToken } from "../queries/user.queries";
-import { UserApiResponse, UserBankInput } from "../types/user.types";
 
-export const addBankController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const time = Date.now();
-  const auth = req.cookies.auth;
-  const { name_bank, name_user, stk, email, tinh } = (req as any).validatedData as UserBankInput;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { UserApiResponse, UserBankSchema } from '../../types/user.types';
+import { findUserByToken, getUserBankAccounts, createBankAccount, updateBankAccount } from '../../db/user.queries';
 
+/\*\*
+
+- Add or update bank account
+  \*/
+  export const addBankHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!auth || !name_bank || !name_user || !stk || !email || !tinh) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: time,
-      } as UserApiResponse);
-      return;
-    }
-
-    const user = await userQueryFindByToken(auth);
-    if (!user) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const [existingBySTK, existingByPhone] = await Promise.all([
-      paymentQueryFindUserBankBySTK(stk),
-      paymentQueryFindUserBankByPhone(user.phone),
-    ]);
-
-    if (existingBySTK.length === 0 && existingByPhone.length === 0) {
-      await paymentQueryCreateUserBank({
-        phone: user.phone,
-        name_bank,
-        name_user,
-        stk,
-        email,
-        tinh,
-        time,
-      });
-
-      res.status(200).json({
-        message: "Successfully added bank",
-        status: true,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    } else if (existingBySTK.length > 0) {
-      await paymentQueryUpdateUserBankSTK(stk, user.phone);
-
-      res.status(200).json({
-        message: "Account number updated in the system",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    } else if (existingByPhone.length > 0) {
-      await paymentQueryUpdateUserBank({
-        phone: user.phone,
-        name_bank,
-        name_user,
-        stk,
-        email,
-        tinh,
-        time,
-      });
-
-      res.status(200).json({
-        message: "your account is updated",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-  } catch (error) {
-    console.error("addBankController error:", error);
-    res.status(500).json({
-      message: "Failed to add bank",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  const parsed = UserBankSchema.safeParse(req.body);
+  if (!parsed.success) {
+  res.status(400).json({
+  message: parsed.error.errors.map(e => e.message).join(', '),
+  status: false,
+  timeStamp: Date.now(),
+  });
+  return;
   }
-};
+
+        const { name_bank, name_user, stk, email, tinh } = parsed.data;
+        const auth = req.cookies.auth;
+        const timeNow = Date.now();
+
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Check if bank account already exists
+        const existingAccounts = await getUserBankAccounts(db, user.id);
+        const existingAccount = existingAccounts.find(a => a.accountNumber === stk);
+
+        if (existingAccount) {
+          // Update existing
+          await updateBankAccount(db, user.id, {
+            id: existingAccount.id,
+            bankName: name_bank,
+            accountName: name_user,
+            accountNumber: stk,
+            isDefault: true,
+          });
+
+          res.status(200).json({
+            message: 'Bank account updated successfully',
+            status: true,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Create new bank account
+        await createBankAccount(db, {
+          userId: user.id,
+          type: 'bank',
+          bankName: name_bank,
+          accountName: name_user,
+          accountNumber: stk,
+          isDefault: existingAccounts.length === 0, // First account is default
+        });
+
+        res.status(200).json({
+          message: 'Bank account added successfully',
+          status: true,
+          timeStamp: timeNow,
+        });
+
+  } catch (error) {
+  console.error('addBankHandler error:', error);
+  res.status(500).json({
+  message: 'Something went wrong!',
+  status: false,
+  timeStamp: Date.now(),
+  });
+  }
+  };

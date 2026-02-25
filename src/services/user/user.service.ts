@@ -1,104 +1,84 @@
-import { salaryQueryCreate } from "../../db/user.queries";
-import { helperCalculateSalary } from "../../utils/common.helpers";
+
+import { Pool } from 'mysql2/promise';
+import { User, UserFinancialData } from '../../types/user.types';
 import {
-  userQueryFindById,
-  userQueryFindByToken,
-  userQuerySetFirstDepositBonus,
-  userQuerySetFreeBonus,
-  userQueryUpdateBalance,
-  userQueryUpdateFreeBonus,
-} from "../queries/user.queries";
-import { UserFromToken, UserSafeInfo } from "../types/user.types";
+getTotalDeposits,
+getTotalWithdrawals,
+findUserById
+} from '../../db/user.queries';
+import { generateReferralCode, generateAuthToken, maskPhoneNumber } from '../../utils/user.helpers';
 
-export const userServiceGetByToken = async (token: string): Promise<UserFromToken> => {
-  const user = await userQueryFindByToken(token);
+/\*\*
+
+- Get comprehensive financial summary for user
+  \*/
+  export const getUserFinancialSummary = async (db: Pool, userId: number): Promise<UserFinancialData> => {
+  const user = await findUserById(db, userId);
   if (!user) {
-    throw new Error("User not found or inactive");
+  throw new Error('User not found');
   }
-  return {
-    id: user.id,
-    phone: user.phone,
-    userName: user.userName,
-    referralCode: user.referralCode,
-    invitedBy: user.invitedBy,
-    balance: user.balance,
-    freeBonus: user.freeBonus,
-    firstDepositBonus: user.firstDepositBonus,
+
+const [totalRecharge, totalWithdraw] = await Promise.all([
+getTotalDeposits(db, userId),
+getTotalWithdrawals(db, userId),
+]);
+
+return {
+code: user.referralCode,
+id_user: user.id,
+name_user: user.userName,
+phone_user: maskPhoneNumber(user.phone),
+money_user: user.balance,
+totalRecharge,
+totalWithdraw,
+freeBonus: user.freeBonus,
+};
+};
+
+/\*\*
+
+- Update user information
+  \*/
+  export const updateUserInfo = async (db: Pool, userId: number, data: { name?: string }): Promise<void> => {
+  const { updateUserName } = await import('../../db/user.queries');
+
+if (data.name) {
+await updateUserName(db, userId, data.name);
+}
+};
+
+/\*\*
+
+- Generate unique referral code
+  \*/
+  export { generateReferralCode };
+
+/\*\*
+
+- Generate secure auth token
+  \*/
+  export { generateAuthToken };
+
+/\*\*
+
+- Check if user can perform action (not suspended/banned)
+  \*/
+  export const isUserActive = (user: User): boolean => {
+  return user.status === 0;
   };
+
+/\*\*
+
+- Calculate net result (deposits - withdrawals - bets)
+  \*/
+  export const calculateNetResult = async (db: Pool, userId: number): Promise<number> => {
+  const { getTotalBets } = await import('../../db/user.queries');
+
+const [deposits, withdrawals, bets] = await Promise.all([
+getTotalDeposits(db, userId),
+getTotalWithdrawals(db, userId),
+getTotalBets(db, userId),
+]);
+
+return deposits - withdrawals - bets;
 };
-
-export const userServiceGetSafeInfo = async (token: string): Promise<UserSafeInfo | null> => {
-  const user = await userQueryFindByToken(token);
-  if (!user) return null;
-  return {
-    id: user.id,
-    phone: user.phone,
-    userName: user.userName,
-    referralCode: user.referralCode,
-    invitedBy: user.invitedBy,
-    balance: user.balance,
-    freeBonus: user.freeBonus,
-    firstDepositBonus: user.firstDepositBonus,
-    isVerified: user.isVerified,
-    status: user.status,
-  };
-};
-
-export const userServiceAddBalance = async (
-  phone: string,
-  amount: number,
-  metadata?: {
-    ipAddress?: string;
-    userAgent?: string;
-    description?: string;
-  },
-): Promise<void> => {
-  const user = await userQueryFindByToken(phone); // This won't work, need to fix
-  // Actually we need to get user by phone properly
-};
-
-// Fix: Create proper add balance function
-export const userServiceProcessDeposit = async (
-  phone: string,
-  amount: number,
-  isFirstDeposit: boolean,
-): Promise<void> => {
-  const tenPercent = 0.1 * amount;
-  const salary = helperCalculateSalary(amount);
-  const incrementPercentage = isFirstDeposit ? 0.05 : 0.15;
-
-  await userQuerySetFirstDepositBonus(phone);
-
-  let adjustedAmount = amount + amount * incrementPercentage;
-
-  // Get user to check free bonus
-  const user = await userQueryFindByPhone(phone);
-  if (!user) throw new Error("User not found");
-
-  if (user.freeBonus >= tenPercent) {
-    adjustedAmount += tenPercent;
-    await userQueryUpdateFreeBonus(phone, tenPercent);
-  } else {
-    adjustedAmount += user.freeBonus;
-    await userQuerySetFreeBonus(phone, 0);
-  }
-
-  await userQueryUpdateBalance(phone, adjustedAmount);
-
-  // Handle referral commission
-  if (user.invitedBy && salary > 0) {
-    const agent = await userQueryFindById(user.invitedBy);
-    if (agent) {
-      await salaryQueryCreate({
-        userId: agent.id,
-        amount: salary,
-        type: "Referral Bonus",
-        description: `Referral bonus from ${phone} deposit`,
-      });
-      await userQueryUpdateBalance(agent.phone, salary);
-    }
-  }
-};
-
-// Need to import this
-import { userQueryFindByPhone } from "../queries/user.queries";

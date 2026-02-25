@@ -1,118 +1,126 @@
-import { Request, Response } from "express";
-import { Pool } from "mysql2/promise";
-import { z } from "zod";
-import { create5dBet, get5dCurrentSession } from "../../db/5d.queries";
-import { createCommissionRecord, getCommissionLevels } from "../../db/user.queries";
-import { getUserByToken, updateUserBalance } from "../../services/auth.service";
-import { validate5dBet } from "../../services/k5/5dValidation.service";
-import { distributeCommissions } from "../../services/k5/commission.service";
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { K5DBetSchema, K5DApiResponse } from '../../types/5d.types';
+import { getCurrent5DSession } from '../../db/5d.queries';
+import { validateBetSelection, process5DBet, calculateBetAmount } from '../../services/5d/5dBet.service';
 
-const bet5dSchema = z.object({
-  join: z.enum(["a", "b", "c", "d", "e", "total"]),
-  list_join: z.string().max(10),
-  x: z.string().regex(/^\d+$/),
-  money: z.enum(["1", "10", "100", "1000"]),
-  game: z.enum(["1", "3", "5", "10"]),
-});
+/\*\*
 
-export const bet5dHandler =
-  (db: Pool) =>
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const auth = req.cookies?.auth;
-      if (!auth) {
-        res.status(401).json({ message: "Authentication required", status: false });
+- Handler for placing 5D bets
+  \*/
+  export const bet5dHandler = (db: Pool) => async (req: Request, res: Response): Promise<void> => {
+  try {
+  // 1. Validate input with Zod
+  const validationResult = K5DBetSchema.safeParse(req.body);
+
+      if (!validationResult.success) {
+        const response: K5DApiResponse = {
+          message: 'Invalid bet data: ' + validationResult.error.errors.map(e => e.message).join(', '),
+          status: false,
+          timeStamp: Date.now(),
+        };
+        res.status(400).json(response);
         return;
       }
 
-      const parseResult = bet5dSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        res.status(400).json({ message: "Invalid bet data", status: false });
+      const betData = validationResult.data;
+
+      // 2. Get current game session
+      const session = await getCurrent5DSession(db, parseInt(betData.game));
+
+      if (!session) {
+        const response: K5DApiResponse = {
+          message: 'No active game session',
+          status: false,
+          timeStamp: Date.now(),
+        };
+        res.status(400).json(response);
         return;
       }
 
-      const { join, list_join, x, money, game } = parseResult.data;
-
-      if (!validate5dBet(join, list_join, x, money, game)) {
-        res.status(400).json({ message: "Invalid bet", status: false });
+      if (session.status !== 1) {
+        const response: K5DApiResponse = {
+          message: 'Game session is not open for betting',
+          status: false,
+          timeStamp: Date.now(),
+        };
+        res.status(400).json(response);
         return;
       }
 
-      const session = await get5dCurrentSession(db, parseInt(game));
-      const user = await getUserByToken(db, auth);
-
-      if (!session || !user) {
-        res.status(400).json({ message: "Error!", status: false });
+      // 3. Get authenticated user (attached by middleware)
+      const user = req.user;
+      if (!user) {
+        const response: K5DApiResponse = {
+          message: 'User not authenticated',
+          status: false,
+          timeStamp: Date.now(),
+        };
+        res.status(401).json(response);
         return;
       }
 
-      const total = parseInt(money) * parseInt(x) * list_join.length;
-      const fee = total * 0.02;
-      const price = total - fee;
+      // 4. Validate bet selection
+      if (!validateBetSelection(betData.join, betData.list_join, parseInt(betData.game))) {
+        const response: K5DApiResponse = {
+          message: 'Invalid bet selection',
+          status: false,
+          timeStamp: Date.now(),
+        };
+        res.status(400).json(response);
+        return;
+      }
 
+      // 5. Calculate bet amount
+      const x = parseInt(betData.x, 10);
+      const { total, fee, price } = calculateBetAmount(
+        betData.join,
+        betData.list_join,
+        betData.money,
+        x
+      );
+
+      // 6. Check sufficient balance
       if (user.balance < total) {
-        res.status(400).json({ message: "The amount is not enough", status: false });
+        const response: K5DApiResponse = {
+          message: 'The amount is not enough',
+          status: false,
+          timeStamp: Date.now(),
+        };
+        res.status(400).json(response);
         return;
       }
 
-      const date = new Date();
-      const years = String(date.getFullYear());
-      const months = String(date.getMonth() + 1).padStart(2, "0");
-      const days = String(date.getDate()).padStart(2, "0");
-      const idProduct = years + months + days + Math.floor(Math.random() * 1000000000000000);
-      const timeNow = Date.now();
-
-      await create5dBet(db, {
-        idProduct,
-        phone: user.phone,
-        code: user.referralCode,
-        invite: user.invitedBy,
-        stage: session.period,
-        level: user.userLevel,
-        money: total,
-        price,
-        amount: parseInt(x),
-        fee,
-        game: parseInt(game),
-        joinBet: join,
-        bet: list_join,
-        status: 0,
-        time: timeNow,
+      // 7. Create bet record and process
+      const bet = await process5DBet(db, user.id, {
+        join: betData.join,
+        list_join: betData.list_join,
+        x: betData.x,
+        money: betData.money,
+        game: betData.game,
+        sessionId: session.id,
+        stage: parseInt(session.period),
       });
 
-      await updateUserBalance(db, auth, -total);
-
-      const updatedUser = await getUserByToken(db, auth);
-
-      await distributeCommissions(db)(auth, total);
-
-      const commissionLevels = await getCommissionLevels(db);
-      if (commissionLevels) {
-        const f1 = (total / 100) * commissionLevels.rateF1;
-        const f2 = (total / 100) * commissionLevels.rateF2;
-        const f3 = (total / 100) * commissionLevels.rateF3;
-        const f4 = (total / 100) * commissionLevels.rateF4;
-
-        await createCommissionRecord(db, {
-          phone: user.phone,
-          code: user.referralCode,
-          invitedBy: user.invitedBy,
-          f1,
-          f2,
-          f3,
-          f4,
-          time: timeNow,
-        });
-      }
-
-      res.status(200).json({
-        message: "Successful bet",
+      // 8. Return success response
+      const newBalance = user.balance - total;
+      const response: K5DApiResponse = {
+        message: 'Successful bet',
         status: true,
-        change: updatedUser?.userLevel,
-        money: updatedUser?.balance,
-      });
-    } catch (error) {
-      console.error("Bet 5D error:", error);
-      res.status(500).json({ message: "Internal error", status: false });
-    }
-  };
+        money: newBalance,
+        change: user.userLevel,
+        timeStamp: Date.now(),
+      };
+
+      res.json(response);
+
+} catch (error) {
+console.error('Bet processing error:', error);
+const response: K5DApiResponse = {
+message: error instanceof Error ? error.message : 'Internal server error',
+status: false,
+timeStamp: Date.now(),
+};
+res.status(500).json(response);
+}
+};

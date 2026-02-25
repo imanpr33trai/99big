@@ -1,84 +1,128 @@
-import moment from "moment";
-import { Pool } from "mysql2/promise";
+import { Pool } from 'mysql2/promise';
+import {
+  findUserByAuthToken,
+  updateUserBalance,
+  setFirstDepositBonus,
+  updateFreeBonus,
+  createTransactionLog,
+  findReferrerByCode,
+  createSalaryRecord,
+  getDepositBonusConfig,
+  findUserByPhone
+} from '../../db/payment.queries';
+import {
+  DepositBonus,
+  DepositRecord,
+  User,
+  PaymentStatus,
+  PaymentMethodType
+} from '../../types/payment.types';
+import { calculateDepositBonus, generateOrderId } from '../../utils/payment.helpers';
 
-export const getRechargeOrderId = (): string => {
-  const date = new Date();
-  const idTime = date.getUTCFullYear() + "" + (date.getUTCMonth() + 1) + "" + date.getUTCDate();
-  const idOrder =
-    Math.floor(Math.random() * (99999999999999 - 10000000000000 + 1)) + 10000000000000;
-  return idTime + idOrder;
+/**
+ * Generate unique order ID
+ */
+export { generateOrderId };
+
+/**
+ * Get user data by authentication token
+ */
+export const getUserDataByAuthToken = async (db: Pool, authToken: string): Promise<User | null> => {
+  if (!authToken) return null;
+  return await findUserByAuthToken(db, authToken);
 };
 
-export const getUserDataByAuthToken = async (db: Pool, authToken: string) => {
-  const [rows] = await db.execute(
-    "SELECT phone, referralCode, userName, invitedBy FROM users WHERE authToken = ? LIMIT 1",
-    [authToken],
-  );
-
-  const user = (rows as any[])[0];
-  if (!user) throw new Error("Unable to get user data!");
-
-  return {
-    phone: user.phone,
-    code: user.referralCode,
-    username: user.userName,
-    invite: user.invitedBy,
-  };
+/**
+ * Calculate deposit bonus with all rules
+ */
+export const calculateDepositBonusAmount = (
+  amount: number,
+  isFirstDeposit: boolean,
+  freeBonus: number
+): DepositBonus => {
+  return calculateDepositBonus(amount, isFirstDeposit, freeBonus);
 };
 
-export const addUserAccountBalance = async (
-  db: Pool,
-  { money, phone }: { money: number; phone: string },
-) => {
-  const timeNow = new Date();
-  const timeIST = new Date(timeNow.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-  const formattedTime = moment(timeIST).format("YYYY-MM-DD HH:mm:ss");
-
-  const tenPercent = 0.1 * money;
-  let salary = 0;
-
-  if (money >= 100 && money <= 299) salary = 20;
-  else if (money >= 300 && money <= 999) salary = 60;
-  else if (money >= 1000) salary = 150;
-
-  const [userRows] = await db.execute("SELECT * FROM users WHERE phone = ?", [phone]);
-  const userData = (userRows as any[])[0];
-
-  const isFirstDeposit = userData.firstDepositBonus;
-  const freeBonus = userData.freeBonus;
-  const invite = userData.invitedBy;
-
-  const [agentRows] = await db.execute("SELECT * FROM users WHERE referralCode = ?", [invite]);
-  const agent = (agentRows as any[])[0];
-
-  const incrementPercentage = isFirstDeposit ? 0.05 : 0.15;
-  await db.execute("UPDATE users SET firstDepositBonus = ? WHERE phone = ?", [true, phone]);
-
-  let adjustedMoney = money + money * incrementPercentage;
-
-  if (freeBonus >= tenPercent) {
-    adjustedMoney += tenPercent;
-    await db.execute("UPDATE users SET freeBonus = freeBonus - ? WHERE phone = ?", [
-      tenPercent,
-      phone,
-    ]);
-  } else {
-    adjustedMoney += freeBonus;
-    await db.execute("UPDATE users SET freeBonus = ? WHERE phone = ?", [0, phone]);
+/**
+ * Process deposit credit to user account with bonuses
+ */
+export const processDepositCredit = async (db: Pool, deposit: DepositRecord): Promise<void> => {
+  const user = await findUserByPhone(db, deposit.phone || '');
+  if (!user) {
+    throw new Error(`User not found for deposit ${deposit.orderId}`);
   }
 
-  await db.execute(
-    "INSERT INTO salaryRecords (userId, amount, type, createdAt) VALUES ((SELECT id FROM users WHERE phone = ?), ?, ?, ?)",
-    [agent?.phone || phone, salary, "Referral Bonus", Date.now()],
+  const bonusConfig = await calculateDepositBonus(
+    deposit.amount,
+    !user.firstDepositBonus,
+    user.freeBonus
   );
 
-  await db.execute(
-    "UPDATE users SET balance = balance + ?, totalDeposited = totalDeposited + ? WHERE phone = ?",
-    [salary, salary, agent?.phone || phone],
-  );
+  const totalCredit = deposit.amount +
+    (deposit.amount * bonusConfig.bonusPercentage) +
+    bonusConfig.freeBonus;
 
-  await db.execute(
-    "UPDATE users SET balance = balance + ?, totalDeposited = totalDeposited + ? WHERE phone = ?",
-    [adjustedMoney, adjustedMoney, phone],
-  );
+  // Update user balance
+  await updateUserBalance(db, user.id, totalCredit);
+
+  // Mark first deposit bonus as used if applicable
+  if (!user.firstDepositBonus) {
+    await setFirstDepositBonus(db, user.id);
+  }
+
+  // Deduct used free bonus
+  if (bonusConfig.freeBonus > 0) {
+    await updateFreeBonus(db, user.id, bonusConfig.freeBonus);
+  }
+
+  // Create transaction log for deposit
+  await createTransactionLog(db, {
+    userId: user.id,
+    typeId: 1, // Deposit type
+    amount: totalCredit,
+    balanceBefore: user.balance,
+    balanceAfter: user.balance + totalCredit,
+    referenceId: deposit.id,
+    referenceType: 'deposit',
+    description: `Deposit of ₹${deposit.amount} with bonus`,
+    ipAddress: deposit.ipAddress,
+  });
+
+  // Process referrer salary if applicable
+  if (user.invitedBy && bonusConfig.salary > 0) {
+    const referrer = await findUserByPhone(db, String(user.invitedBy));
+    if (referrer) {
+      await createSalaryRecord(db, {
+        userId: referrer.id,
+        amount: bonusConfig.salary,
+        type: 'referral_commission',
+        description: `Commission for referral deposit by ${user.phone}`,
+        periodStart: new Date().toISOString().split('T')[0],
+        periodEnd: new Date().toISOString().split('T')[0],
+        isPaid: false,
+        paidAt: null,
+      });
+    }
+  }
+};
+
+/**
+ * Validate UTR format (12 digits)
+ */
+export const validateUTR = (utr: string): boolean => {
+  return /^\d{12}$/.test(utr);
+};
+
+/**
+ * Validate amount against minimum
+ */
+export const validateAmount = (amount: number, minimum: number): boolean => {
+  return amount >= minimum;
+};
+
+/**
+ * Get minimum deposit amount from environment
+ */
+export const getMinimumDepositAmount = (): number => {
+  return parseInt(process.env.MINIMUM_MONEY || '100', 10);
 };

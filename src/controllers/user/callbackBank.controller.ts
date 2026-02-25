@@ -1,56 +1,86 @@
-import { Request, Response } from "express";
-import { helperGetCurrentTimestamp } from "../helpers/common.helpers";
-import {
-  paymentQueryFindRechargeByOrderId,
-  paymentQueryUpdateRechargeStatus,
-} from "../queries/payment.queries";
-import { userQueryUpdateBalance } from "../queries/user.queries";
-import { UserApiResponse, UserCallbackBankInput } from "../types/user.types";
 
-export const callbackBankController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const { transaction_id, client_transaction_id, amount, status } = (req as any)
-    .validatedData as UserCallbackBankInput;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { UserApiResponse, DepositStatus } from '../../types/user.types';
+import { findDepositByOrderId, updateDepositStatus } from '../../db/user.queries';
+import { processDepositCredit } from '../../services/payment/paymentHelpers.service';
 
+/\*\*
+
+- Handle bank transfer callback from payment gateway
+  \*/
+  export const callbackBankHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!transaction_id) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+  // Extract callback data (format varies by gateway)
+  const { orderId, status, transactionId, amount, signature } = req.body;
 
-    if (status === 2) {
-      await paymentQueryUpdateRechargeStatus(client_transaction_id, 1);
-      const recharge = await paymentQueryFindRechargeByOrderId(client_transaction_id);
+        // Validate required fields
+        if (!orderId || !status) {
+          res.status(400).json({
+            message: 'Missing required fields',
+            status: false,
+            timeStamp: Date.now(),
+          });
+          return;
+        }
 
-      if (recharge) {
-        await userQueryUpdateBalance(recharge.phone, recharge.money);
-      }
+        // TODO: Validate signature based on your gateway's algorithm
+        // const isValidSignature = validateCallbackSignature(req.body, signature);
+        // if (!isValidSignature) {
+        //   res.status(400).json({ message: 'Invalid signature', status: false });
+        //   return;
+        // }
 
-      res.status(200).json({
-        message: 0,
-        status: true,
-      });
-      return;
-    } else {
-      // Assuming 'id' should come from somewhere - this might need fixing
-      // await paymentQueryUpdateRechargeStatusById(id, 2);
+        // Find deposit
+        const deposit = await findDepositByOrderId(db, orderId);
+        if (!deposit) {
+          res.status(404).json({
+            message: 'Deposit not found',
+            status: false,
+            timeStamp: Date.now(),
+          });
+          return;
+        }
 
-      res.status(200).json({
-        message: "Cancellation successful",
-        status: true,
-      } as UserApiResponse);
-      return;
-    }
+        // Process based on status
+        if (status === 'success' || status === 'completed') {
+          if (deposit.status === DepositStatus.PENDING) {
+            await updateDepositStatus(db, orderId, DepositStatus.COMPLETED);
+            await processDepositCredit(db, deposit);
+          }
+
+          res.status(200).json({
+            message: 'Callback processed successfully',
+            status: true,
+            timeStamp: Date.now(),
+          });
+          return;
+        }
+
+        if (status === 'failed' || status === 'cancelled') {
+          await updateDepositStatus(db, orderId, DepositStatus.FAILED);
+
+          res.status(200).json({
+            message: 'Payment marked as failed',
+            status: true,
+            timeStamp: Date.now(),
+          });
+          return;
+        }
+
+        // Pending or processing
+        res.status(200).json({
+          message: 'Callback received',
+          status: true,
+          timeStamp: Date.now(),
+        });
+
   } catch (error) {
-    console.error("callbackBankController error:", error);
-    res.status(500).json({
-      message: "Callback processing failed",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  console.error('callbackBankHandler error:', error);
+  res.status(500).json({
+  message: 'Internal server error',
+  status: false,
+  timeStamp: Date.now(),
+  });
   }
-};
+  };

@@ -1,46 +1,46 @@
-import { Request, Response } from "express";
-import { helperGetCurrentTimestamp } from "../helpers/common.helpers";
-import { paymentQueryDeletePendingRecharge } from "../queries/payment.queries";
-import { userQueryFindByToken } from "../queries/user.queries";
-import { UserApiResponse } from "../types/user.types";
 
-export const cancelRechargeController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const auth = req.cookies.auth;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { UserApiResponse } from '../../types/user.types';
+import { findUserByToken, deletePendingDeposits } from '../../db/user.queries';
 
+/\*\*
+
+- Cancel all pending recharges
+  \*/
+  export const cancelRechargeHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!auth) {
-      res.status(200).json({
-        message: "Authorization is required to access this API!",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+  const auth = req.cookies.auth;
+  const timeNow = Date.now();
 
-    const user = await userQueryFindByToken(auth);
-    if (!user) {
-      res.status(200).json({
-        message: "Authorization is required to access this API!",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
 
-    await paymentQueryDeletePendingRecharge(user.phone);
+        // Delete all pending deposits
+        const deletedCount = await deletePendingDeposits(db, user.id);
 
-    res.status(200).json({
-      message: "All the pending recharges has been deleted successfully!",
-      status: true,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+        res.status(200).json({
+          message: `Cancelled ${deletedCount} pending deposit(s)`,
+          status: true,
+          data: {
+            cancelled_count: deletedCount,
+          },
+          timeStamp: timeNow,
+        });
+
   } catch (error) {
-    console.error("cancelRechargeController error:", error);
-    res.status(500).json({
-      message: "API Request failed!",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  console.error('cancelRechargeHandler error:', error);
+  res.status(500).json({
+  message: 'Something went wrong!',
+  status: false,
+  timeStamp: Date.now(),
+  });
   }
-};
+  };

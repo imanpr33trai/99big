@@ -1,47 +1,55 @@
-import { Request, Response } from "express";
-import { helperGetCurrentTimestamp } from "../helpers/common.helpers";
-import { paymentQueryFindRechargeByPhoneAndStatus } from "../queries/payment.queries";
-import { userQueryFindByToken } from "../queries/user.queries";
-import { UserApiResponse } from "../types/user.types";
 
-export const listRechargeController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const auth = req.cookies.auth;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { UserApiResponse } from '../../types/user.types';
+import { findUserByToken, getUserDeposits } from '../../db/user.queries';
 
+/\*\*
+
+- Get recharge/deposit history
+  \*/
+  export const listRechargeHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!auth) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+  const auth = req.cookies.auth;
+  const timeNow = Date.now();
 
-    const user = await userQueryFindByToken(auth);
-    if (!user) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
 
-    const recharge = await paymentQueryFindRechargeByPhoneAndStatus(user.phone, 1);
+        // Get all deposits ordered by date
+        const deposits = await getUserDeposits(db, user.id);
 
-    res.status(200).json({
-      message: "Receive success",
-      datas: recharge,
-      status: true,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+        res.status(200).json({
+          message: 'Success',
+          status: true,
+          data: {
+            deposits: deposits.map(d => ({
+              id: d.id,
+              order_id: d.orderId,
+              amount: d.amount,
+              status: d.status,
+              utr_number: d.utrNumber,
+              created_at: d.createdAt,
+            })),
+            total_deposits: deposits.length,
+            total_amount: deposits.reduce((sum, d) => sum + d.amount, 0),
+          },
+          timeStamp: timeNow,
+        });
+
   } catch (error) {
-    console.error("listRechargeController error:", error);
-    res.status(500).json({
-      message: "Failed to get recharge list",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  console.error('listRechargeHandler error:', error);
+  res.status(500).json({
+  message: 'Something went wrong!',
+  status: false,
+  timeStamp: Date.now(),
+  });
   }
-};
+  };

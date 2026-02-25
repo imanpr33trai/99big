@@ -1,160 +1,154 @@
-import { Pool } from "mysql2/promise";
+import { Pool } from 'mysql2/promise';
+import { K5DBetRecord } from '../../types/5d.types';
+import { generate5DResult, calculateTotal, isSmall, isBig, isEven, isOdd, isTotalSmall, isTotalBig } from '../../utils/5d.helpers';
+import { getPending5DBets, update5DBetStatus, update5DResult, get5DControlSettings } from '../../db/5d.queries';
 
-export const make5dId = (length: number): string => {
-  const characters = "0123456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length));
+/\*\*
+
+- Generate random 5-digit result
+  _/
+  export const generate5DResult = (): string => {
+  let result = '';
+  for (let i = 0; i < 5; i++) {
+  result += Math.floor(Math.random() _ 10).toString();
   }
   return result;
-};
-
-export const process5dResults =
-  (db: Pool) =>
-  async (game: number): Promise<void> => {
-    const [k5dRows] = await db.query(
-      `SELECT * FROM 5dGames WHERE status != 0 AND game = ${game} ORDER BY id DESC LIMIT 1`,
-    );
-
-    if ((k5dRows as any[]).length === 0) return;
-
-    const k5dInfo = (k5dRows as any[])[0];
-    const result = String(k5dInfo.result).split("");
-    const [a, b, c, d, e] = result;
-    const total = result.reduce((sum, digit) => sum + Number(digit), 0);
-
-    await db.execute(`UPDATE result5dBets SET result = ? WHERE status = 0 AND game = ${game}`, [
-      k5dInfo.result,
-    ]);
-
-    // Process positions a-e
-    const positions = [
-      { name: "a", value: a },
-      { name: "b", value: b },
-      { name: "c", value: c },
-      { name: "d", value: d },
-      { name: "e", value: e },
-    ];
-
-    for (const pos of positions) {
-      await processPositionBets(db, game, pos.name, pos.value);
-    }
-
-    // Process total
-    await processTotalBets(db, game, total);
   };
 
-const processPositionBets = async (
-  db: Pool,
-  game: number,
-  position: string,
-  value: string,
-): Promise<void> => {
-  const [bets] = await db.execute(
-    `SELECT id, bet FROM result5dBets WHERE status = 0 AND game = ? AND joinBet = ?`,
-    [game, position],
-  );
+/\*\*
 
-  for (const bet of bets as any[]) {
-    const isNum = /^\d+$/.test(bet.bet);
-    if (isNum) {
-      const match = bet.bet.split("").includes(value);
-      if (!match) {
-        await db.execute("UPDATE result5dBets SET status = 2 WHERE id = ?", [bet.id]);
-      }
+- Evaluate position bet (a, b, c, d, e)
+  \*/
+  export const evaluatePositionBet = (
+  bet: K5DBetRecord,
+  result: string[],
+  position: string
+  ): boolean => {
+  const posMap: Record<string, number> = { a: 0, b: 1, c: 2, d: 3, e: 4 };
+  const pos = posMap[position];
+  const digit = result[pos];
+
+for (const char of bet.selection) {
+// Specific number match
+if (char === digit) return true;
+
+    // Category checks
+    switch (char) {
+      case 'b': // small
+        if (isSmall(digit)) return true;
+        break;
+      case 's': // big
+        if (isBig(digit)) return true;
+        break;
+      case 'l': // even
+        if (isEven(digit)) return true;
+        break;
+      case 'c': // odd
+        if (isOdd(digit)) return true;
+        break;
     }
-  }
 
-  const numValue = Number(value);
+}
 
-  if (numValue <= 4) {
-    await db.execute(
-      `UPDATE result5dBets SET status = 2 WHERE game = ? AND joinBet = ? AND bet = 'b'`,
-      [game, position],
-    );
-  } else {
-    await db.execute(
-      `UPDATE result5dBets SET status = 2 WHERE game = ? AND joinBet = ? AND bet = 's'`,
-      [game, position],
-    );
-  }
-
-  if (numValue % 2 === 0) {
-    await db.execute(
-      `UPDATE result5dBets SET status = 2 WHERE game = ? AND joinBet = ? AND bet = 'l'`,
-      [game, position],
-    );
-  } else {
-    await db.execute(
-      `UPDATE result5dBets SET status = 2 WHERE game = ? AND joinBet = ? AND bet = 'c'`,
-      [game, position],
-    );
-  }
+return false;
 };
 
-const processTotalBets = async (db: Pool, game: number, total: number): Promise<void> => {
-  const [bets] = await db.execute(
-    `SELECT id FROM result5dBets WHERE status = 0 AND game = ? AND joinBet = 'total'`,
-    [game],
-  );
+/\*\*
 
-  if ((bets as any[]).length === 0) return;
-
-  if (total <= 22) {
-    await db.execute(
-      `UPDATE result5dBets SET status = 2 WHERE game = ? AND joinBet = 'total' AND bet = 'b'`,
-      [game],
-    );
-  } else {
-    await db.execute(
-      `UPDATE result5dBets SET status = 2 WHERE game = ? AND joinBet = 'total' AND bet = 's'`,
-      [game],
-    );
+- Evaluate total bet
+  \*/
+  export const evaluateTotalBet = (bet: K5DBetRecord, total: number): boolean => {
+  for (const char of bet.selection) {
+  switch (char) {
+  case 'b': // small (0-22)
+  if (isTotalSmall(total)) return true;
+  break;
+  case 's': // big (23-45)
+  if (isTotalBig(total)) return true;
+  break;
+  case 'l': // even
+  if (total % 2 === 0) return true;
+  break;
+  case 'c': // odd
+  if (total % 2 !== 0) return true;
+  break;
+  }
   }
 
-  if (total % 2 === 0) {
-    await db.execute(
-      `UPDATE result5dBets SET status = 2 WHERE game = ? AND joinBet = 'total' AND bet = 'l'`,
-      [game],
-    );
-  } else {
-    await db.execute(
-      `UPDATE result5dBets SET status = 2 WHERE game = ? AND joinBet = 'total' AND bet = 'c'`,
-      [game],
-    );
-  }
+return false;
 };
 
-export const process5dPayouts =
-  (db: Pool) =>
-  async (game: number): Promise<void> => {
-    const [orderRows] = await db.execute(
-      `SELECT id, phone, bet, price, money, fee, amount FROM result5dBets WHERE status = 0 AND game = ?`,
-      [game],
-    );
+/\*\*
 
-    for (const order of orderRows as any[]) {
-      const isNum = /^\d+$/.test(order.bet);
-      let payout = 0;
+- Calculate win amount for a bet
+  \*/
+  export const calculateBetWinAmount = (bet: K5DBetRecord, result: string): number => {
+  const digits = result.split('');
+  const { price } = calculatePriceFromBet(bet);
 
-      if (isNum) {
-        const arr = order.bet.split("");
-        const base = order.money / arr.length / order.amount;
-        const fee = base * 0.02;
-        const price = base - fee;
-        payout = price * 9;
-      } else {
-        payout = order.price * 2;
+if (bet.betType === 'total') {
+const total = calculateTotal(result);
+
+    for (const char of bet.selection) {
+      let won = false;
+      switch (char) {
+        case 'b': won = isTotalSmall(total); break;
+        case 's': won = isTotalBig(total); break;
+        case 'l': won = total % 2 === 0; break;
+        case 'c': won = total % 2 !== 0; break;
       }
-
-      await db.execute("UPDATE result5dBets SET winAmount = ?, status = 1 WHERE id = ?", [
-        payout,
-        order.id,
-      ]);
-
-      await db.execute("UPDATE users SET balance = balance + ? WHERE phone = ?", [
-        payout,
-        order.phone,
-      ]);
+      if (won) return price * 2;
     }
+
+} else {
+const posMap: Record<string, number> = { a: 0, b: 1, c: 2, d: 3, e: 4 };
+const pos = posMap[bet.betType];
+const digit = digits[pos];
+
+    for (const char of bet.selection) {
+      if (char === digit) return price * 9; // Specific number
+
+      let won = false;
+      switch (char) {
+        case 'b': won = isSmall(digit); break;
+        case 's': won = isBig(digit); break;
+        case 'l': won = isEven(digit); break;
+        case 'c': won = isOdd(digit); break;
+      }
+      if (won) return price * 2;
+    }
+
+}
+
+return 0;
+};
+
+/\*\*
+
+- Helper to calculate price from bet record
+  \*/
+  const calculatePriceFromBet = (bet: K5DBetRecord): { total: number; fee: number; price: number } => {
+  const fee = bet.fee;
+  const total = bet.betAmount;
+  const price = total - fee;
+  return { total, fee, price };
   };
+
+/\*\*
+
+- Process 5D results - evaluate all pending bets
+  \*/
+  export const process5DResults = async (db: Pool, sessionId: number, result: string): Promise<void> => {
+  const bets = await getPending5DBets(db, sessionId);
+
+for (const bet of bets) {
+const winAmount = calculateBetWinAmount(bet, result);
+const isWin = winAmount > 0;
+
+    // Status: 0=pending, 1=won, 2=lost
+    const status = isWin ? 0 : 2; // Keep as 0 for payout processing, 2 for lost
+
+    await update5DBetStatus(db, bet.id, status, isWin ? winAmount : 0, isWin);
+
+}
+};

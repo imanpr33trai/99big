@@ -1,127 +1,142 @@
-import { Request, Response } from "express";
-import {
-  helperFormatTime,
-  helperGenerateOrderId,
-  helperGetCurrentTimestamp,
-} from "../helpers/common.helpers";
-import { cryptoHashMD5 } from "../helpers/crypto.helpers";
-import {
-  paymentQueryCreateWithdraw,
-  paymentQueryFindMinutes1ByPhone,
-  paymentQueryFindRechargeByPhoneAndStatus,
-  paymentQueryFindUserBankByPhone,
-  paymentQueryFindWithdrawByPhoneAndStatus,
-  paymentQueryFindWithdrawByPhoneAndToday,
-} from "../queries/payment.queries";
-import { userQueryDeductBalance, userQueryFindByToken } from "../queries/user.queries";
-import { UserApiResponse, UserWithdrawInput } from "../types/user.types";
 
-export const withdrawalController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const auth = req.cookies.auth;
-  const { money, password } = (req as any).validatedData as UserWithdrawInput;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import bcrypt from 'bcrypt';
+import { UserApiResponse, UserWithdrawSchema, WithdrawalStatus } from '../../types/user.types';
+import {
+findUserByToken,
+getDefaultBankAccount,
+getTodayWithdrawalCount,
+createWithdrawal,
+deductUserBalance,
+getTotalBets
+} from '../../db/user.queries';
+import { generateOrderId } from '../../utils/user.helpers';
 
+/\*\*
+
+- Process withdrawal request
+  \*/
+  export const withdrawalHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!auth || !money || !password || money < 299) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const user = await userQueryFindByToken(auth);
-    if (!user || user.passwordHash !== cryptoHashMD5(password)) {
-      res.status(200).json({
-        message: "incorrect password",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const dates = Date.now();
-    const checkTime = helperFormatTime(dates);
-    const id_order = helperGenerateOrderId();
-
-    const [withdraw_set, recharge, minutes_1, user_bank, withdraw] = await Promise.all([
-      paymentQueryFindWithdrawByPhoneAndStatus(user.phone, 1),
-      paymentQueryFindRechargeByPhoneAndStatus(user.phone, 1),
-      paymentQueryFindMinutes1ByPhone(user.phone),
-      paymentQueryFindUserBankByPhone(user.phone),
-      paymentQueryFindWithdrawByPhoneAndToday(user.phone, checkTime),
-    ]);
-
-    let total = withdraw_set.reduce((sum, w) => sum + parseFloat(String(w.money)), 0);
-    let total2 = minutes_1.reduce((sum, m) => sum + parseFloat(String(m.get)), 0);
-    let result = total2 - total - money;
-
-    if (user_bank.length === 0) {
-      res.status(200).json({
-        message: "Please link your bank first",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    if (withdraw.length >= 3) {
-      res.status(200).json({
-        message: "You can only make 3 withdrawals per day",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    if (user.balance < money) {
-      res.status(200).json({
-        message: "The balance is not enough to fulfill the request",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    if (result < 0) {
-      res.status(200).json({
-        message: "The total bet is not enough to fulfill the request",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const infoBank = user_bank[0];
-
-    await paymentQueryCreateWithdraw({
-      id_order: id_order,
-      phone: user.phone,
-      money: money,
-      stk: infoBank.stk,
-      name_bank: infoBank.name_bank,
-      ifsc: infoBank.email,
-      name_user: infoBank.name_user,
-      status: 0,
-      today: checkTime,
-      time: dates,
-    });
-
-    await userQueryDeductBalance(user.phone, money);
-
-    res.status(200).json({
-      message: "Withdrawal successful",
-      status: true,
-      money: user.balance - money,
-      timeStamp: timeNow,
-    } as UserApiResponse);
-  } catch (error) {
-    console.error("withdrawalController error:", error);
-    res.status(500).json({
-      message: "Failed to process withdrawal",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  const parsed = UserWithdrawSchema.safeParse(req.body);
+  if (!parsed.success) {
+  res.status(400).json({
+  message: parsed.error.errors.map(e => e.message).join(', '),
+  status: false,
+  timeStamp: Date.now(),
+  });
+  return;
   }
-};
+
+        const { money, password } = parsed.data;
+        const auth = req.cookies.auth;
+        const timeNow = Date.now();
+
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Verify password with bcrypt
+        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+        if (!isValidPassword) {
+          res.status(400).json({
+            message: 'Incorrect password',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Check bank account exists
+        const bankAccount = await getDefaultBankAccount(db, user.id);
+        if (!bankAccount) {
+          res.status(400).json({
+            message: 'Please add a bank account first',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Check daily withdrawal limit (3 per day)
+        const todayWithdrawals = await getTodayWithdrawalCount(db, user.id);
+        if (todayWithdrawals >= 3) {
+          res.status(400).json({
+            message: 'Daily withdrawal limit reached (3 per day)',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Check balance
+        if (user.balance < money) {
+          res.status(400).json({
+            message: 'Insufficient balance',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Check bet requirement (total bets >= withdrawal amount)
+        const totalBets = await getTotalBets(db, user.id);
+        if (totalBets < money) {
+          res.status(400).json({
+            message: 'Betting requirement not met. Total bets must be greater than or equal to withdrawal amount.',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Generate order ID
+        const orderId = generateOrderId();
+
+        // Create withdrawal record
+        await createWithdrawal(db, {
+          userId: user.id,
+          orderId,
+          amount: money,
+          bankAccountId: bankAccount.id,
+        });
+
+        // Deduct balance
+        const deducted = await deductUserBalance(db, user.id, money);
+        if (!deducted) {
+          res.status(400).json({
+            message: 'Failed to process withdrawal. Please try again.',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        res.status(200).json({
+          message: 'Withdrawal request submitted successfully',
+          status: true,
+          data: {
+            order_id: orderId,
+            amount: money,
+            status: 'pending',
+            estimated_time: '24-48 hours',
+          },
+          timeStamp: timeNow,
+        });
+
+  } catch (error) {
+  console.error('withdrawalHandler error:', error);
+  res.status(500).json({
+  message: 'Something went wrong!',
+  status: false,
+  timeStamp: Date.now(),
+  });
+  }
+  };

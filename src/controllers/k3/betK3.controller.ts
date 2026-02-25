@@ -1,194 +1,129 @@
-import crypto from "crypto";
 import { Request, Response } from "express";
 import { Pool } from "mysql2/promise";
+import { findUserByToken, getCurrentK3Session, updateUserBalance } from "../../db/k3.queries";
 import {
-  createK3Bet,
-  getK3CurrentSession,
-  getUserBalanceByToken,
-  updateUserBalance,
-} from "../../db/k3.queries";
-import { createCommissionRecord, getCommissionLevels } from "../../db/user.queries";
-import {
-  calculateK3BetTotal,
-  calculateK3Fees,
-  determineK3GameType,
-  generateK3ProductId,
-  shouldDistributeCommission,
-} from "../../services/k3.service";
-import { BetK3Body, betK3Schema, K3GameDuration, K3GameJoin } from "../../types/k3.types";
-
-// ============================================================================
-// CONTROLLER
-// ============================================================================
+  calculateBetAmount,
+  processK3Bet,
+  validateBetSelection,
+} from "../../services/k3/k3Bet.service";
+import { K3ApiResponse, K3BetSchema } from "../../types/k3.types";
 
 export const betK3Handler =
   (db: Pool) =>
-  async (req: Request<{}, {}, BetK3Body>, res: Response): Promise<void> => {
-    const requestId = crypto.randomUUID();
-    const timestamp = Date.now();
-
+  async (req: Request, res: Response<K3ApiResponse>): Promise<void> => {
     try {
-      // 1. Get auth and validate body
-      const auth = req.cookies?.auth;
+      // 1. Validate input with Zod
+      const parsed = K3BetSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          message: "Invalid input: " + parsed.error.errors.map((e) => e.message).join(", "),
+          status: false,
+          timeStamp: Date.now(),
+        });
+        return;
+      }
+
+      const { listJoin, game, gameJoin, xvalue, money } = parsed.data;
+      const auth = req.cookies?.auth || req.headers?.authorization?.replace("Bearer ", "");
+
       if (!auth) {
         res.status(401).json({
-          success: false,
           message: "Authentication required",
-          code: "UNAUTHORIZED",
+          status: false,
+          timeStamp: Date.now(),
         });
         return;
       }
 
-      const parseResult = betK3Schema.safeParse(req.body);
-      if (!parseResult.success) {
-        res.status(400).json({
-          success: false,
-          message: "Invalid bet data",
-          errors: parseResult.error.issues.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-          code: "VALIDATION_ERROR",
-        });
-        return;
-      }
+      // 2. Get current game session
+      const gameNum = parseInt(game);
+      const session = await getCurrentK3Session(db, gameNum);
 
-      const { listJoin, game, gameJoin, xvalue, money } = parseResult.data;
-
-      // 2. Get current K3 session
-      const session = await getK3CurrentSession(db, parseInt(game) as K3GameDuration);
       if (!session) {
         res.status(400).json({
-          success: false,
           message: "No active game session",
-          code: "NO_ACTIVE_SESSION",
+          status: false,
+          timeStamp: Date.now(),
         });
         return;
       }
 
-      // 3. Get user info
-      const user = await getUserBalanceByToken(db, auth);
+      // Check if betting is still open
+      const now = Date.now();
+      if (session.closedAt && now >= session.closedAt) {
+        res.status(400).json({
+          message: "Betting is closed for this period",
+          status: false,
+          timeStamp: Date.now(),
+        });
+        return;
+      }
+
+      // 3. Get user and check balance
+      const user = await findUserByToken(db, auth);
       if (!user) {
         res.status(401).json({
-          success: false,
-          message: "User not found or not verified",
-          code: "USER_NOT_FOUND",
+          message: "Unauthorized",
+          status: false,
+          timeStamp: Date.now(),
         });
         return;
       }
 
-      // 4. Calculate bet total
-      const total = calculateK3BetTotal({
-        gameJoin: gameJoin as K3GameJoin,
-        listJoin,
-        xvalue,
-        money,
-      });
-
-      const { fee, price } = calculateK3Fees(total);
-
-      // 5. Check balance
-      if (user.balance < total) {
+      // 4. Validate bet selection
+      if (!validateBetSelection(listJoin, gameJoin)) {
         res.status(400).json({
-          success: false,
-          message: "Insufficient balance",
-          data: {
-            required: total,
-            available: user.balance,
-          },
-          code: "INSUFFICIENT_BALANCE",
+          message: "Invalid bet selection",
+          status: false,
+          timeStamp: Date.now(),
         });
         return;
       }
 
-      // 6. Generate product ID
-      const productId = generateK3ProductId();
-      const typeGame = determineK3GameType(gameJoin);
+      // 5. Calculate total bet amount and fee
+      const calculation = calculateBetAmount(gameJoin, listJoin, money, xvalue);
 
-      // 7. Execute transaction
-      const connection = await db.getConnection();
-      await connection.beginTransaction();
-
-      try {
-        // Create bet record
-        await createK3Bet(connection as Pool, {
-          idProduct: productId,
-          phone: user.phone,
-          code: user.referralCode,
-          invitedBy: user.invitedBy,
-          stage: session.period,
-          level: user.userLevel,
-          money: total,
-          price,
-          amount: xvalue,
-          fee,
-          game: parseInt(game),
-          joinBet: parseInt(gameJoin),
-          typeGame,
-          bet: listJoin,
-          status: 0,
-          time: timestamp,
+      // 6. Check sufficient balance
+      if (user.balance < calculation.total) {
+        res.status(400).json({
+          message: "The amount is not enough",
+          status: false,
+          timeStamp: Date.now(),
         });
-
-        // Deduct balance
-        await updateUserBalance(connection as Pool, auth, -total);
-
-        await connection.commit();
-      } catch (error) {
-        await connection.rollback();
-        throw error;
-      } finally {
-        connection.release();
+        return;
       }
 
-      // 8. Distribute commissions (async, don't block)
-      shouldDistributeCommission(db, auth, total, "k3_bet").catch((err) => {
-        console.error(`[${requestId}] Commission distribution failed:`, err);
+      // 7. Create bet record
+      const bet = await processK3Bet(db, user.id, {
+        sessionId: session.id,
+        stage: session.period,
+        listJoin,
+        gameJoin,
+        money,
+        xvalue,
+        game: gameNum,
       });
 
-      // 9. Log commission record
-      const commissionLevels = await getCommissionLevels(db);
-      if (commissionLevels) {
-        const f1 = (total / 100) * commissionLevels.rateF1;
-        const f2 = (total / 100) * commissionLevels.rateF2;
-        const f3 = (total / 100) * commissionLevels.rateF3;
-        const f4 = (total / 100) * commissionLevels.rateF4;
+      // 8. Deduct balance
+      await updateUserBalance(db, user.id, -calculation.total);
 
-        await createCommissionRecord(db, {
-          phone: user.phone,
-          code: user.referralCode,
-          invitedBy: user.invitedBy,
-          f1,
-          f2,
-          f3,
-          f4,
-          time: timestamp,
-        });
-      }
+      // 9. Get updated balance
+      const newBalance = user.balance - calculation.total;
 
-      // 10. Get updated balance
-      const updatedUser = await getUserBalanceByToken(db, auth);
-
+      // 10. Return success response
       res.status(200).json({
-        success: true,
-        message: "Bet placed successfully",
-        data: {
-          productId,
-          period: session.period,
-          total,
-          fee,
-          price,
-          remainingBalance: updatedUser?.balance || 0,
-          timestamp: timestamp.toString(),
-        },
+        message: "Successful bet",
+        status: true,
+        money: newBalance,
+        change: user.userLevel,
+        timeStamp: Date.now(),
       });
     } catch (error) {
-      console.error(`[${requestId}] K3 bet error:`, error);
-
+      console.error("betK3Handler error:", error);
       res.status(500).json({
-        success: false,
         message: "Failed to place bet",
-        code: "INTERNAL_ERROR",
+        status: false,
+        timeStamp: Date.now(),
       });
     }
   };

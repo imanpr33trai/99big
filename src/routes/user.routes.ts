@@ -1,194 +1,109 @@
 import { Router } from "express";
-import { middlewareAuth } from "../middleware/auth.middleware";
-import { middlewareValidate } from "../middleware/validate.middleware";
+import { Pool } from "mysql2/promise";
 import {
-  userVerifyCodeSchema,
-  userChangeInfoSchema,
-  userChangePasswordSchema,
-  userCheckInSchema,
-  userBankSchema,
-  userWithdrawSchema,
-  userTransferSchema,
-  userRedEnvelopeSchema,
-  userRechargeSchema,
-  userUpdateRechargeSchema,
-  userConfirmRechargeSchema,
-  userSearchSchema,
-  userCancelRechargeSchema,
-  userInfoBankSchema,
-  userTransferHistorySchema,
-  userListRechargeSchema,
-  userListWithdrawSchema,
-  userPromotionSchema,
-  userMyTeamSchema,
-  userListMyTeamSchema,
-  userRecharge2Schema,
-  userAviatorSchema,
-  userCallbackBankSchema,
-  userConfirmUSDTRechargeSchema,
-} from "../schemas/user.schemas";
+  userAuthMiddleware,
+  sensitiveOperationRateLimit,
+  requireLevel,
+} from "../middleware/userAuth.middleware";
 
-// Controllers
-import { verifyCodeController } from "../controllers/verifyCode.controller";
-import { userInfoController } from "../controllers/userInfo.controller";
-import { changeUserController } from "../controllers/changeUser.controller";
-import { changePasswordController } from "../controllers/changePassword.controller";
-import { checkInController } from "../controllers/checkIn.controller";
-import { aviatorController } from "../controllers/aviator.controller";
-import { promotionController } from "../controllers/promotion.controller";
-import { myTeamController } from "../controllers/myTeam.controller";
-import { listMyTeamController } from "../controllers/listMyTeam.controller";
-import { rechargeController } from "../controllers/recharge.controller";
-import { cancelRechargeController } from "../controllers/cancelRecharge.controller";
-import { addBankController } from "../controllers/addBank.controller";
-import { infoUserBankController } from "../controllers/infoUserBank.controller";
-import { withdrawalController } from "../controllers/withdrawal.controller";
-import { transferController } from "../controllers/transfer.controller";
-import { transferHistoryController } from "../controllers/transferHistory.controller";
-import { recharge2Controller } from "../controllers/recharge2.controller";
-import { listRechargeController } from "../controllers/listRecharge.controller";
-import { searchController } from "../controllers/search.controller";
-import { listWithdrawController } from "../controllers/listWithdraw.controller";
-import { useRedEnvelopeController } from "../controllers/useRedEnvelope.controller";
-import { callbackBankController } from "../controllers/callbackBank.controller";
-import { confirmRechargeController } from "../controllers/confirmRecharge.controller";
-import { confirmUSDTRechargeController } from "../controllers/confirmUSDTRecharge.controller";
-import { updateRechargeController } from "../controllers/updateRecharge.controller";
+// Import all controllers
+import { verifyCodeHandler } from "../controllers/user/verifyCode.controller";
+import { userInfoHandler } from "../controllers/user/userInfo.controller";
+import { changeUserHandler } from "../controllers/user/changeUser.controller";
+import { changePasswordHandler } from "../controllers/user/changePassword.controller";
+import { checkInHandler } from "../controllers/user/checkIn.controller";
+import { aviatorHandler } from "../controllers/user/aviator.controller";
+import { promotionHandler } from "../controllers/user/promotion.controller";
+import { myTeamHandler } from "../controllers/user/myTeam.controller";
+import { listMyTeamHandler } from "../controllers/user/listMyTeam.controller";
+import { rechargeHandler } from "../controllers/user/recharge.controller";
+import { cancelRechargeHandler } from "../controllers/user/cancelRecharge.controller";
+import { recharge2Handler } from "../controllers/user/recharge2.controller";
+import { listRechargeHandler } from "../controllers/user/listRecharge.controller";
+import { confirmRechargeHandler } from "../controllers/user/confirmRecharge.controller";
+import { updateRechargeHandler } from "../controllers/user/updateRecharge.controller";
+import { addBankHandler } from "../controllers/user/addBank.controller";
+import { infoUserBankHandler } from "../controllers/user/infoUserBank.controller";
+import { withdrawalHandler } from "../controllers/user/withdrawal.controller";
+import { listWithdrawHandler } from "../controllers/user/listWithdraw.controller";
+import { transferHandler } from "../controllers/user/transfer.controller";
+import { transferHistoryHandler } from "../controllers/user/transferHistory.controller";
+import { useRedEnvelopeHandler } from "../controllers/user/useRedEnvelope.controller";
+import { searchHandler } from "../controllers/user/search.controller";
+import { callbackBankHandler } from "../controllers/user/callbackBank.controller";
+import { confirmUSDTRechargeHandler } from "../controllers/user/confirmUSDTRecharge.controller";
 
-const router = Router();
+export const createUserRoutes = (db: Pool): Router => {
+  const router = Router();
 
-// Auth & User Info
-router.post(
-  "/verify-code",
-  middlewareAuth,
-  middlewareValidate(userVerifyCodeSchema),
-  verifyCodeController,
-);
-router.get("/user-info", middlewareAuth, userInfoController);
-router.post(
-  "/change-user",
-  middlewareAuth,
-  middlewareValidate(userChangeInfoSchema),
-  changeUserController,
-);
-router.post(
-  "/change-password",
-  middlewareAuth,
-  middlewareValidate(userChangePasswordSchema),
-  changePasswordController,
-);
+  // Auth & Account
+  router.post("/verify-code", userAuthMiddleware(db), verifyCodeHandler(db));
+  router.get("/user-info", userAuthMiddleware(db), userInfoHandler(db));
+  router.post("/change-user", userAuthMiddleware(db), changeUserHandler(db));
+  router.post(
+    "/change-password",
+    userAuthMiddleware(db),
+    sensitiveOperationRateLimit(3, 300000), // 3 attempts per 5 minutes
+    changePasswordHandler(db),
+  );
 
-// Check-in & Games
-router.post("/check-in", middlewareAuth, middlewareValidate(userCheckInSchema), checkInController);
-router.get("/aviator", middlewareAuth, middlewareValidate(userAviatorSchema), aviatorController);
+  // Check-in
+  router.post("/check-in", userAuthMiddleware(db), checkInHandler(db));
 
-// Team & Promotion
-router.get(
-  "/promotion",
-  middlewareAuth,
-  middlewareValidate(userPromotionSchema),
-  promotionController,
-);
-router.get("/my-team", middlewareAuth, middlewareValidate(userMyTeamSchema), myTeamController);
-router.get(
-  "/list-my-team",
-  middlewareAuth,
-  middlewareValidate(userListMyTeamSchema),
-  listMyTeamController,
-);
+  // Games
+  router.get("/aviator", userAuthMiddleware(db), aviatorHandler(db));
 
-// Banking
-router.post("/add-bank", middlewareAuth, middlewareValidate(userBankSchema), addBankController);
-router.get(
-  "/info-user-bank",
-  middlewareAuth,
-  middlewareValidate(userInfoBankSchema),
-  infoUserBankController,
-);
+  // Promotion & Team
+  router.get("/promotion", userAuthMiddleware(db), promotionHandler(db));
+  router.get("/my-team", userAuthMiddleware(db), myTeamHandler(db));
+  router.get("/list-my-team", userAuthMiddleware(db), listMyTeamHandler(db));
 
-// Recharge
-router.post(
-  "/recharge",
-  middlewareAuth,
-  middlewareValidate(userRechargeSchema),
-  rechargeController,
-);
-router.post(
-  "/cancel-recharge",
-  middlewareAuth,
-  middlewareValidate(userCancelRechargeSchema),
-  cancelRechargeController,
-);
-router.get(
-  "/recharge2",
-  middlewareAuth,
-  middlewareValidate(userRecharge2Schema),
-  recharge2Controller,
-);
-router.get(
-  "/list-recharge",
-  middlewareAuth,
-  middlewareValidate(userListRechargeSchema),
-  listRechargeController,
-);
-router.post(
-  "/confirm-recharge",
-  middlewareAuth,
-  middlewareValidate(userConfirmRechargeSchema),
-  confirmRechargeController,
-);
-router.post(
-  "/update-recharge",
-  middlewareAuth,
-  middlewareValidate(userUpdateRechargeSchema),
-  updateRechargeController,
-);
+  // Banking
+  router.post("/add-bank", userAuthMiddleware(db), addBankHandler(db));
+  router.get("/info-user-bank", userAuthMiddleware(db), infoUserBankHandler(db));
 
-// Withdrawal
-router.post(
-  "/withdrawal",
-  middlewareAuth,
-  middlewareValidate(userWithdrawSchema),
-  withdrawalController,
-);
-router.get(
-  "/list-withdraw",
-  middlewareAuth,
-  middlewareValidate(userListWithdrawSchema),
-  listWithdrawController,
-);
+  // Recharge
+  router.post("/recharge", userAuthMiddleware(db), rechargeHandler(db));
+  router.post("/cancel-recharge", userAuthMiddleware(db), cancelRechargeHandler(db));
+  router.get("/recharge2", userAuthMiddleware(db), recharge2Handler(db));
+  router.get("/list-recharge", userAuthMiddleware(db), listRechargeHandler(db));
+  router.post("/confirm-recharge", userAuthMiddleware(db), confirmRechargeHandler(db));
+  router.post("/update-recharge", userAuthMiddleware(db), updateRechargeHandler(db));
 
-// Transfer
-router.post(
-  "/transfer",
-  middlewareAuth,
-  middlewareValidate(userTransferSchema),
-  transferController,
-);
-router.get(
-  "/transfer-history",
-  middlewareAuth,
-  middlewareValidate(userTransferHistorySchema),
-  transferHistoryController,
-);
+  // Withdrawal
+  router.post(
+    "/withdrawal",
+    userAuthMiddleware(db),
+    sensitiveOperationRateLimit(3, 86400000), // 3 attempts per day
+    withdrawalHandler(db),
+  );
+  router.get("/list-withdraw", userAuthMiddleware(db), listWithdrawHandler(db));
 
-// Red Envelope
-router.post(
-  "/use-red-envelope",
-  middlewareAuth,
-  middlewareValidate(userRedEnvelopeSchema),
-  useRedEnvelopeController,
-);
+  // Transfer
+  router.post(
+    "/transfer",
+    userAuthMiddleware(db),
+    sensitiveOperationRateLimit(5, 3600000), // 5 attempts per hour
+    transferHandler(db),
+  );
+  router.get("/transfer-history", userAuthMiddleware(db), transferHistoryHandler(db));
 
-// Search
-router.post("/search", middlewareAuth, middlewareValidate(userSearchSchema), searchController);
+  // Red Envelope
+  router.post("/use-red-envelope", userAuthMiddleware(db), useRedEnvelopeHandler(db));
 
-// Callbacks
-router.post("/callback-bank", middlewareValidate(userCallbackBankSchema), callbackBankController);
-router.post(
-  "/confirm-usdt-recharge",
-  middlewareValidate(userConfirmUSDTRechargeSchema),
-  confirmUSDTRechargeController,
-);
+  // Search (Admin/CTV only)
+  router.post(
+    "/search",
+    userAuthMiddleware(db),
+    requireLevel(2), // CTV or Admin only
+    searchHandler(db),
+  );
 
-export default router;
+  // Callbacks (Public endpoints for payment gateways)
+  router.post("/callback-bank", callbackBankHandler(db));
+  router.post("/confirm-usdt-recharge", confirmUSDTRechargeHandler(db));
+
+  return router;
+};
+
+export default createUserRoutes;

@@ -1,68 +1,71 @@
-import { Request, Response } from "express";
-import { helperFormatTime, helperGetCurrentTimestamp } from "../helpers/common.helpers";
-import {
-  paymentQueryFindMinutes1ByPhone,
-  paymentQueryFindRechargeByPhoneAndStatus,
-  paymentQueryFindUserBankByPhone,
-} from "../queries/payment.queries";
-import { userQueryFindByToken } from "../queries/user.queries";
-import { UserApiResponse } from "../types/user.types";
 
-export const infoUserBankController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const auth = req.cookies.auth;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { UserApiResponse } from '../../types/user.types';
+import { findUserByToken, getUserBankAccounts, getTotalDeposits, getTotalWithdrawals } from '../../db/user.queries';
+import { calculateNetResult } from '../../services/user/user.service';
 
+/\*\*
+
+- Get user bank info and financial summary
+  \*/
+  export const infoUserBankHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!auth) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+  const auth = req.cookies.auth;
+  const timeNow = Date.now();
 
-    const user = await userQueryFindByToken(auth);
-    if (!user) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
 
-    const date = Date.now();
-    const checkTime = helperFormatTime(date);
+        // Calculate net result (deposits - withdrawals - bets)
+        const netResult = await calculateNetResult(db, user.id);
 
-    const [recharges, minutes1, userBank] = await Promise.all([
-      paymentQueryFindRechargeByPhoneAndStatus(user.phone, 1),
-      paymentQueryFindMinutes1ByPhone(user.phone),
-      paymentQueryFindUserBankByPhone(user.phone),
-    ]);
+        // Get bank accounts
+        const bankAccounts = await getUserBankAccounts(db, user.id);
 
-    let total = recharges.reduce((sum, r) => sum + parseFloat(String(r.money)), 0);
-    let total2 = minutes1.reduce((sum, m) => sum + parseFloat(String(m.money)), 0);
-    let fee = minutes1.reduce((sum, m) => sum + parseFloat(String(m.fee)), 0);
+        // Get totals
+        const [totalDeposits, totalWithdrawals] = await Promise.all([
+          getTotalDeposits(db, user.id),
+          getTotalWithdrawals(db, user.id),
+        ]);
 
-    let result = Math.max(total - total2 - fee, 0);
+        res.status(200).json({
+          message: 'Success',
+          status: true,
+          data: {
+            financial_summary: {
+              total_deposits: totalDeposits,
+              total_withdrawals: totalWithdrawals,
+              net_result: netResult,
+              current_balance: user.balance,
+            },
+            bank_accounts: bankAccounts.map(acc => ({
+              id: acc.id,
+              bank_name: acc.bankName,
+              account_name: acc.accountName,
+              account_number: acc.accountNumber,
+              ifsc_code: acc.ifscCode,
+              is_default: acc.isDefault,
+              is_verified: acc.isVerified,
+            })),
+            can_withdraw: netResult > 0 && bankAccounts.length > 0,
+          },
+          timeStamp: timeNow,
+        });
 
-    res.status(200).json({
-      message: "Received successfully",
-      datas: userBank,
-      userInfo: [
-        { phone: user.phone, code: user.referralCode, invite: user.invitedBy, money: user.balance },
-      ],
-      result: result,
-      status: true,
-      timeStamp: timeNow,
-    } as UserApiResponse);
   } catch (error) {
-    console.error("infoUserBankController error:", error);
-    res.status(500).json({
-      message: "Failed to get bank info",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  console.error('infoUserBankHandler error:', error);
+  res.status(500).json({
+  message: 'Something went wrong!',
+  status: false,
+  timeStamp: Date.now(),
+  });
   }
-};
+  };

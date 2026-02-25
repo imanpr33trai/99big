@@ -1,98 +1,72 @@
 import { Request, Response } from "express";
 import { Pool } from "mysql2/promise";
-import { z } from "zod";
+import { getCurrentK3Session, getK3ControlSettings, getK3History } from "../../db/k3.queries";
+import { K3ApiResponse, K3GameSession, K3HistorySchema } from "../../types/k3.types";
 
-const listOrderOldSchema = z.object({
-  gameJoin: z.enum(["1", "3", "5", "10"]),
-  pageno: z.number().int().min(0),
-  pageto: z.number().int().min(0),
-});
+interface HistoryResponse {
+  code: number;
+  msg: string;
+  data: {
+    gameslist: K3GameSession[];
+  };
+  period?: string;
+  page?: number;
+  bet?: unknown[];
+  settings?: string | null;
+  join?: string;
+  status: boolean;
+}
 
 export const listOrderOldHandler =
   (db: Pool) =>
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: Request, res: Response<HistoryResponse | K3ApiResponse>): Promise<void> => {
     try {
-      const auth = req.cookies?.auth;
-      if (!auth) {
-        res.status(401).json({
-          success: false,
-          message: "Authentication required",
-          code: "UNAUTHORIZED",
-        });
-        return;
-      }
-
-      const parseResult = listOrderOldSchema.safeParse(req.body);
-      if (!parseResult.success) {
+      // 1. Validate input
+      const parsed = K3HistorySchema.safeParse(req.body);
+      if (!parsed.success) {
         res.status(400).json({
-          code: 0,
-          msg: "Invalid parameters",
-          data: { gameslist: [] },
+          message: "Invalid input",
           status: false,
-        });
+          timeStamp: Date.now(),
+        } as K3ApiResponse);
         return;
       }
 
-      const { gameJoin, pageno, pageto } = parseResult.data;
-      const game = Number(gameJoin);
+      const { gameJoin, pageno, pageto } = parsed.data;
 
-      // Get user
-      const [userRows] = await db.execute(
-        "SELECT phone, referralCode, invitedBy, userLevel, balance FROM users WHERE authToken = ? AND isVerified = TRUE LIMIT 1",
-        [auth],
-      );
+      // 2. Get game history
+      const gameNum = parseInt(gameJoin);
+      const history = await getK3History(db, gameNum, pageno, pageto);
 
-      if ((userRows as any[]).length === 0) {
-        res.status(401).json({
-          success: false,
-          message: "User not found",
-          code: "USER_NOT_FOUND",
-        });
-        return;
-      }
+      // 3. Get current period
+      const currentSession = await getCurrentK3Session(db, gameNum);
+      const currentPeriod = currentSession ? currentSession.period : "";
 
-      // Get game history with pagination
-      const [k3Rows] = await db.query(
-        `SELECT * FROM k3 WHERE status != 0 AND game = ? ORDER BY id DESC LIMIT ?, ?`,
-        [game, pageno, pageto],
-      );
+      // 4. Get control settings
+      const settings = await getK3ControlSettings(db, gameNum);
 
-      const [k3AllRows] = await db.query(`SELECT * FROM k3 WHERE status != 0 AND game = ?`, [game]);
-
-      const [periodRows] = await db.query(
-        `SELECT period FROM k3 WHERE status = 0 AND game = ? ORDER BY id DESC LIMIT 1`,
-        [game],
-      );
-
-      if ((k3Rows as any[]).length === 0) {
-        res.status(200).json({
-          code: 0,
-          msg: "No more data",
-          data: { gameslist: [] },
-          page: 1,
-          status: false,
-        });
-        return;
-      }
-
-      const page = Math.ceil((k3AllRows as any[]).length / 10);
-
-      res.status(200).json({
+      // 5. Return formatted response
+      const response: HistoryResponse = {
         code: 0,
         msg: "Get success",
         data: {
-          gameslist: k3Rows,
+          gameslist: history,
         },
-        period: (periodRows as any[])[0]?.period,
-        page,
+        period: currentPeriod,
+        page: pageno,
+        bet: [],
+        settings,
+        join: "",
         status: true,
-      });
+      };
+
+      res.status(200).json(response);
     } catch (error) {
-      console.error("List order old error:", error);
+      console.error("listOrderOldHandler error:", error);
       res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        code: "INTERNAL_ERROR",
-      });
+        message: "Failed to retrieve history",
+        status: false,
+        timeStamp: Date.now(),
+      } as K3ApiResponse);
     }
   };

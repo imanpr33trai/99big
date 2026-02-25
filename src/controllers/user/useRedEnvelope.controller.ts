@@ -1,79 +1,65 @@
-import { Request, Response } from "express";
-import { helperGetCurrentTimestamp } from "../helpers/common.helpers";
-import {
-  paymentQueryCreateRedEnvelopeUsed,
-  paymentQueryFindRedEnvelopeById,
-  paymentQueryUpdateRedEnvelopeStatus,
-} from "../queries/payment.queries";
-import { userQueryFindByToken, userQueryUpdateBalance } from "../queries/user.queries";
-import { UserApiResponse, UserRedEnvelopeInput } from "../types/user.types";
 
-export const useRedEnvelopeController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const auth = req.cookies.auth;
-  const { code } = (req as any).validatedData as UserRedEnvelopeInput;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { UserApiResponse, UserRedEnvelopeSchema } from '../../types/user.types';
+import { findUserByToken } from '../../db/user.queries';
+import { claimEnvelope } from '../../services/user/redEnvelope.service';
 
+/\*\*
+
+- Claim red envelope gift
+  \*/
+  export const useRedEnvelopeHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!auth || !code) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const user = await userQueryFindByToken(auth);
-    if (!user) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const redEnvelope = await paymentQueryFindRedEnvelopeById(code);
-
-    if (!redEnvelope) {
-      res.status(200).json({
-        message: "Redemption code error",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    if (redEnvelope.status !== 0) {
-      res.status(200).json({
-        message: "Gift code already used",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    await paymentQueryUpdateRedEnvelopeStatus(code);
-    await userQueryUpdateBalance(user.phone, redEnvelope.money);
-    await paymentQueryCreateRedEnvelopeUsed({
-      phone: redEnvelope.phone,
-      phone_used: user.phone,
-      id_redenvelops: code,
-      money: redEnvelope.money,
-      time: timeNow,
-    });
-
-    res.status(200).json({
-      message: `Received successfully +${redEnvelope.money}`,
-      status: true,
-      timeStamp: timeNow,
-    } as UserApiResponse);
-  } catch (error) {
-    console.error("useRedEnvelopeController error:", error);
-    res.status(500).json({
-      message: "Failed to use red envelope",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  const parsed = UserRedEnvelopeSchema.safeParse(req.body);
+  if (!parsed.success) {
+  res.status(400).json({
+  message: parsed.error.errors.map(e => e.message).join(', '),
+  status: false,
+  timeStamp: Date.now(),
+  });
+  return;
   }
-};
+
+        const { code } = parsed.data;
+        const auth = req.cookies.auth;
+        const timeNow = Date.now();
+
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Claim envelope
+        const amount = await claimEnvelope(db, code, user.id);
+
+        res.status(200).json({
+          message: `Successfully claimed ₹${amount} from red envelope!`,
+          status: true,
+          data: {
+            envelope_code: code,
+            amount_claimed: amount,
+            new_balance: user.balance + amount,
+          },
+          timeStamp: timeNow,
+        });
+
+  } catch (error) {
+  console.error('useRedEnvelopeHandler error:', error);
+
+        // Handle specific errors
+        const errorMessage = error instanceof Error ? error.message : 'Something went wrong!';
+
+        res.status(400).json({
+          message: errorMessage,
+          status: false,
+          timeStamp: Date.now(),
+        });
+
+  }
+  };

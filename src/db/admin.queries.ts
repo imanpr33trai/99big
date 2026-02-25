@@ -1,493 +1,427 @@
-// db/admin.queries.ts
-import { Pool } from "mysql2/promise";
-import {
-  AdminConfigRow,
-  BetRow,
-  CommissionLevelRow,
-  DepositRow,
-  GameSessionRow,
-  PaymentMethodRow,
-  SalaryRecordRow,
-  UserBankAccountRow,
-  UserRow,
-  WithdrawalRow,
-} from "../types/admin.types";
-import { getCurrentTimestamp } from "../utils/admin.helpers";
+import { Pool, ResultSetHeader } from "mysql2/promise";
+import { AdminUser, CommissionData, DepositRecord, WithdrawalRecord } from "../types/admin.types";
+import { getTodayStartTimestamp } from "../utils/admin.helpers";
 
 // User Queries
-export const findUserByToken = async (db: Pool, token: string): Promise<UserRow | null> => {
-  const [rows] = await db.execute<UserRow[]>(
-    "SELECT * FROM users WHERE authToken = ? AND isVerified = 1 LIMIT 1",
-    [token],
-  );
-  return rows.length > 0 ? rows[0] : null;
-};
+/**
+ * List members with pagination
 
-export const findUserByPhone = async (db: Pool, phone: string): Promise<UserRow | null> => {
-  const [rows] = await db.execute<UserRow[]>("SELECT * FROM users WHERE phone = ? LIMIT 1", [
-    phone,
-  ]);
-  return rows.length > 0 ? rows[0] : null;
-};
-
-export const findUserById = async (db: Pool, id: number): Promise<UserRow | null> => {
-  const [rows] = await db.execute<UserRow[]>("SELECT * FROM users WHERE id = ? LIMIT 1", [id]);
-  return rows.length > 0 ? rows[0] : null;
-};
-
-export const findUserByReferralCode = async (db: Pool, code: string): Promise<UserRow | null> => {
-  const [rows] = await db.execute<UserRow[]>("SELECT * FROM users WHERE referralCode = ? LIMIT 1", [
-    code,
-  ]);
-  return rows.length > 0 ? rows[0] : null;
-};
-
-export const findUserByCode = async (db: Pool, code: string): Promise<UserRow | null> => {
-  const [rows] = await db.execute<UserRow[]>("SELECT * FROM users WHERE referralCode = ? LIMIT 1", [
-    code,
-  ]);
-  return rows.length > 0 ? rows[0] : null;
-};
-
-export const countUsersByInviteCode = async (db: Pool, code: string): Promise<number> => {
-  const [rows] = await db.execute<[{ userCount: number }]>(
-    "SELECT COUNT(*) as userCount FROM users WHERE invitedBy = (SELECT id FROM users WHERE referralCode = ?)",
-    [code],
-  );
-  return rows[0]?.userCount || 0;
-};
-
-export const getUsersByInviteCode = async (db: Pool, code: string): Promise<UserRow[]> => {
-  const [rows] = await db.execute<UserRow[]>(
-    `SELECT u.* FROM users u
-     INNER JOIN users inviter ON u.invitedBy = inviter.id
-     WHERE inviter.referralCode = ?`,
-    [code],
-  );
-  return rows;
-};
-
+ * @param db
+ * @param page
+ * @param limit
+ * @returns
+ */
 export const listMembers = async (
   db: Pool,
-  offset: number,
+  page: number,
   limit: number,
-): Promise<{ users: UserRow[]; total: number }> => {
-  const [users] = await db.execute<UserRow[]>(
-    "SELECT * FROM users WHERE isVerified = 1 AND isCollaborator = FALSE ORDER BY id DESC LIMIT ?, ?",
-    [offset, limit],
+): Promise<{ users: AdminUser[]; total: number }> => {
+  const offset = page - limit;
+
+  const [countRows] = await db.execute(
+    "SELECT COUNT(*) as total FROM users WHERE userLevel = 0",
+    [],
   );
-  const [totalRows] = await db.execute<[{ count: number }]>(
-    "SELECT COUNT(*) as count FROM users WHERE isVerified = 1 AND isCollaborator = FALSE",
+  const total = (countRows as any[])[0].total;
+
+  const [rows] = await db.execute(
+    `SELECT id, phone, userName, balance, referralCode, invitedBy, isVerified,
+            status, userLevel, createdAt
+     FROM users WHERE userLevel = 0
+     ORDER BY id DESC LIMIT ? OFFSET ?`,
+    [limit, offset],
   );
-  return { users, total: totalRows[0].count };
+
+  return { users: rows as AdminUser[], total };
 };
 
-export const listCTV = async (db: Pool, offset: number, limit: number): Promise<UserRow[]> => {
-  const [rows] = await db.execute<UserRow[]>(
-    "SELECT * FROM users WHERE isVerified = 1 AND isCollaborator = TRUE ORDER BY id DESC LIMIT ?, ?",
-    [offset, limit],
-  );
-  return rows;
-};
-
-export const updateUserStatus = async (db: Pool, id: number, status: number): Promise<void> => {
-  await db.execute("UPDATE users SET status = ? WHERE id = ?", [status, id]);
-};
-
-export const updateUserBalance = async (
+/**
+ * List CTVs with pagination
+ * @param db
+ * @param page
+ * @param limit
+ * @returns
+ */
+export const listCTV = async (
   db: Pool,
-  userId: number,
-  amount: number,
-): Promise<void> => {
+  page: number,
+  limit: number,
+): Promise<{ users: AdminUser[]; total: number }> => {
+  const offset = page - limit;
+  const [countRows] = await db.execute(
+    "SELECT COUNT(*) as total FROM users WHERE userLevel = 2",
+    [],
+  );
+  const total = (countRows as any[])[0].total;
+
+  const [rows] = await db.execute(
+    `SELECT id, phone, userName, balance, referralCode, invitedBy, isVerified,
+            status, userLevel, createdAt
+     FROM users WHERE userLevel = 2
+     ORDER BY id DESC LIMIT ? OFFSET ?`,
+    [limit, offset],
+  );
+
+  return { users: rows as AdminUser[], total };
+};
+
+/**
+ * Get direct subordinates (F1)
+ * @param db
+ * @param referralCode
+ * @returns
+ */
+export const getDirectSubordinates = async (
+  db: Pool,
+  referralCode: string,
+): Promise<AdminUser[]> => {
+  const todayStart = getTodayStartTimestamp();
+
+  const [rows] = await db.execute(
+    `SELECT id, phone, userName, balance, referralCode, invitedBy, isVerified,
+            status, userLevel, createdAt
+     FROM users WHERE invitedBy = (SELECT id FROM users WHERE referralCode = ?)
+     ORDER BY createdAt DESC`,
+    [referralCode],
+  );
+
+  return rows as AdminUser[];
+};
+
+/**
+ * Get subordinates by user IDs (for F2, F3, F4)
+ * @param db
+ * @param userIds
+ * @returns
+ */
+export const getSubordinatesByLevel = async (db: Pool, userIds: number[]): Promise<AdminUser[]> => {
+  if (userIds.length === 0) return [];
+
+  const placeholders = userIds.map(() => "?").join(",");
+  const [rows] = await db.execute(
+    `SELECT id, phone, userName, balance, referralCode, invitedBy, isVerified,
+            status, userLevel, createdAt
+     FROM users WHERE invitedBy IN (${placeholders})`,
+    userIds,
+  );
+
+  return rows as AdminUser[];
+};
+
+// Statistics Queries
+
+/**
+ * Get game statistics
+ * @param db
+ * @returns
+ */
+
+export const getGameStatistics = async (db: Pool): Promise<any[]> => {
+  const [rows] = await db.execute(
+    `SELECT gt.id, gt.name, gt.duration,
+            COUNT(b.id) as totalBets,
+            SUM(b.betAmount) as totalBetAmount,
+            SUM(b.actualWin) as totalWinAmount
+     FROM gameTypes gt
+     LEFT JOIN bets b ON gt.id = b.gameTypeId
+     GROUP BY gt.id, gt.name, gt.duration`,
+    [],
+  );
+  return rows as any[];
+};
+
+/**
+ * Get today's deposits
+ * @param db
+ * @returns
+ */
+export const getTodayDeposits = async (db: Pool): Promise<{ count: number; amount: number }> => {
+  const todayStart = getTodayStartTimestamp();
+  const [rows] = await db.execute(
+    `SELECT COUNT(_) as count, COALESCE(SUM(amount), 0) as amount
+  FROM deposits
+  WHERE createdAt >= ? AND status = 2`,
+    [todayStart],
+  );
+  return (rows as any[])[0] || { count: 0, amount: 0 };
+};
+
+/**
+ * Get today's withdrawals
+ * @param db
+ * @returns
+ */
+export const getTodayWithdrawals = async (db: Pool): Promise<{ count: number; amount: number }> => {
+  const todayStart = getTodayStartTimestamp();
+  const [rows] = await db.execute(
+    `SELECT COUNT(_) as count, COALESCE(SUM(amount), 0) as amount
+  FROM withdrawals
+  WHERE requestedAt >= ? AND status = 2`,
+    [todayStart],
+  );
+  return (rows as any[])[0] || { count: 0, amount: 0 };
+};
+
+/**
+ * Get total join (bet statistics)
+ * @param db
+ * @param gameTypeId
+ * @returns
+ */
+
+export const getTotalJoin = async (db: Pool, gameTypeId: number): Promise<any> => {
+  const [rows] = await db.execute(
+    `SELECT
+      SUM(CASE WHEN betType = 'big' THEN betAmount ELSE 0 END) as big,
+      SUM(CASE WHEN betType = 'small' THEN betAmount ELSE 0 END) as small,
+      SUM(CASE WHEN betType = 'odd' THEN betAmount ELSE 0 END) as odd,
+      SUM(CASE WHEN betType = 'even' THEN betAmount ELSE 0 END) as even,
+      SUM(CASE WHEN betType = 'red' THEN betAmount ELSE 0 END) as red,
+      SUM(CASE WHEN betType = 'green' THEN betAmount ELSE 0 END) as green,
+      SUM(CASE WHEN betType = 'violet' THEN betAmount ELSE 0 END) as violet
+     FROM bets
+     WHERE gameTypeId = ? AND status = 0`,
+    [gameTypeId],
+  );
+  return (rows as any[])[0] || {};
+};
+
+// Settings Queries
+
+/**
+ * Get all admin configs
+ * @param db
+ * @returns
+ */
+
+export const getAdminConfigs = async (db: Pool): Promise<Record<string, string>> => {
+  const [rows] = await db.execute("SELECT configKey, configValue FROM adminConfigs", []);
+
+  const configs: Record<string, string> = {};
+  (rows as any[]).forEach((row) => {
+    configs[row.configKey] = row.configValue;
+  });
+
+  return configs;
+};
+
+/**
+ * Update admin config
+ * @param db
+ * @param key
+ * @param value
+ */
+
+export const updateAdminConfig = async (db: Pool, key: string, value: string): Promise<void> => {
+  const now = Date.now();
   await db.execute(
-    "UPDATE users SET balance = balance + ?, totalDeposited = totalDeposited + ? WHERE id = ?",
-    [amount, amount > 0 ? amount : 0, userId],
+    `INSERT INTO adminConfigs (configKey, configValue, updatedAt)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE configValue = ?, updatedAt = ?`,
+    [key, value, now, value, now],
   );
 };
 
-export const updateUserMoney = async (db: Pool, phone: string, amount: number): Promise<void> => {
-  await db.execute("UPDATE users SET balance = balance + ? WHERE phone = ?", [amount, phone]);
+/**
+ * Get payment methods
+ * @param db
+ * @returns
+ */
+export const getPaymentMethods = async (db: Pool): Promise<any[]> => {
+  const [rows] = await db.execute("SELECT _ FROM paymentMethods ORDER BY id", []);
+  return rows as any[];
 };
 
-export const setFirstDepositBonus = async (db: Pool, phone: string): Promise<void> => {
-  await db.execute("UPDATE users SET firstDepositBonus = TRUE WHERE phone = ?", [phone]);
-};
-
-export const updateFreeBonus = async (db: Pool, phone: string, amount: number): Promise<void> => {
-  await db.execute("UPDATE users SET freeBonus = GREATEST(freeBonus - ?, 0) WHERE phone = ?", [
-    amount,
-    phone,
-  ]);
-};
-
-// Deposit Queries
-export const getPendingDeposits = async (db: Pool): Promise<DepositRow[]> => {
-  const [rows] = await db.execute<DepositRow[]>(
-    "SELECT d.*, u.phone as userPhone FROM deposits d JOIN users u ON d.userId = u.id WHERE d.status = 0",
-  );
-  return rows;
-};
-
-export const getProcessedDeposits = async (db: Pool): Promise<DepositRow[]> => {
-  const [rows] = await db.execute<DepositRow[]>(
-    "SELECT d.*, u.phone as userPhone FROM deposits d JOIN users u ON d.userId = u.id WHERE d.status != 0",
-  );
-  return rows;
-};
-
-export const getDepositById = async (db: Pool, id: number): Promise<DepositRow | null> => {
-  const [rows] = await db.execute<DepositRow[]>(
-    "SELECT d.*, u.phone as userPhone FROM deposits d JOIN users u ON d.userId = u.id WHERE d.id = ?",
-    [id],
-  );
-  return rows.length > 0 ? rows[0] : null;
-};
-
-export const updateDepositStatus = async (db: Pool, id: number, status: number): Promise<void> => {
-  await db.execute("UPDATE deposits SET status = ? WHERE id = ?", [status, id]);
-};
-
-export const getDepositsByUser = async (
+/**
+ * Get payment methods
+ * @param db
+ * @param type
+ * @param data
+ */
+export const updatePaymentMethod = async (
   db: Pool,
-  userId: number,
-  offset: number,
-  limit: number,
-): Promise<DepositRow[]> => {
-  const [rows] = await db.execute<DepositRow[]>(
-    "SELECT * FROM deposits WHERE userId = ? ORDER BY id DESC LIMIT ?, ?",
-    [userId, offset, limit],
-  );
-  return rows;
-};
-
-export const countDepositsByUser = async (db: Pool, userId: number): Promise<number> => {
-  const [rows] = await db.execute<[{ count: number }]>(
-    "SELECT COUNT(*) as count FROM deposits WHERE userId = ?",
-    [userId],
-  );
-  return rows[0].count;
-};
-
-export const getTodayDeposits = async (db: Pool): Promise<number> => {
-  const today = new Date().toISOString().split("T")[0];
-  const [rows] = await db.execute<[{ total: string }]>(
-    "SELECT COALESCE(SUM(amount), 0) as total FROM deposits WHERE status = 2 AND DATE(FROM_UNIXTIME(createdAt/1000)) = ?",
-    [today],
-  );
-  return parseFloat(rows[0]?.total || "0");
-};
-
-// Withdrawal Queries
-export const getPendingWithdrawals = async (db: Pool): Promise<WithdrawalRow[]> => {
-  const [rows] = await db.execute<WithdrawalRow[]>(
-    "SELECT w.*, u.phone as userPhone FROM withdrawals w JOIN users u ON w.userId = u.id WHERE w.status = 0",
-  );
-  return rows;
-};
-
-export const getProcessedWithdrawals = async (db: Pool): Promise<WithdrawalRow[]> => {
-  const [rows] = await db.execute<WithdrawalRow[]>(
-    "SELECT w.*, u.phone as userPhone FROM withdrawals w JOIN users u ON w.userId = u.id WHERE w.status != 0",
-  );
-  return rows;
-};
-
-export const getWithdrawalById = async (db: Pool, id: number): Promise<WithdrawalRow | null> => {
-  const [rows] = await db.execute<WithdrawalRow[]>(
-    "SELECT w.*, u.phone as userPhone FROM withdrawals w JOIN users u ON w.userId = u.id WHERE w.id = ?",
-    [id],
-  );
-  return rows.length > 0 ? rows[0] : null;
-};
-
-export const updateWithdrawalStatus = async (
-  db: Pool,
-  id: number,
-  status: number,
-  remark?: string,
-): Promise<void> => {
-  if (remark) {
-    await db.execute("UPDATE withdrawals SET status = ?, remarks = ? WHERE id = ?", [
-      status,
-      remark,
-      id,
-    ]);
-  } else {
-    await db.execute("UPDATE withdrawals SET status = ? WHERE id = ?", [status, id]);
-  }
-};
-
-export const getWithdrawalsByUser = async (
-  db: Pool,
-  userId: number,
-  offset: number,
-  limit: number,
-): Promise<WithdrawalRow[]> => {
-  const [rows] = await db.execute<WithdrawalRow[]>(
-    "SELECT * FROM withdrawals WHERE userId = ? ORDER BY id DESC LIMIT ?, ?",
-    [userId, offset, limit],
-  );
-  return rows;
-};
-
-export const countWithdrawalsByUser = async (db: Pool, userId: number): Promise<number> => {
-  const [rows] = await db.execute<[{ count: number }]>(
-    "SELECT COUNT(*) as count FROM withdrawals WHERE userId = ?",
-    [userId],
-  );
-  return rows[0].count;
-};
-
-export const getTodayWithdrawals = async (db: Pool): Promise<number> => {
-  const today = new Date().toISOString().split("T")[0];
-  const [rows] = await db.execute<[{ total: string }]>(
-    "SELECT COALESCE(SUM(amount), 0) as total FROM withdrawals WHERE status = 2 AND DATE(FROM_UNIXTIME(requestedAt/1000)) = ?",
-    [today],
-  );
-  return parseFloat(rows[0]?.total || "0");
-};
-
-// Bet Queries
-export const getBetsByGameType = async (
-  db: Pool,
-  gameType: string,
-  status: number = 0,
-): Promise<BetRow[]> => {
-  const [rows] = await db.execute<BetRow[]>(
-    `SELECT b.* FROM bets b
-     JOIN gameSessions gs ON b.sessionId = gs.id
-     JOIN gameTypes gt ON gs.gameTypeId = gt.id
-     WHERE gt.code = ? AND b.status = ? AND b.userLevel = 0
-     ORDER BY b.id ASC`,
-    [gameType, status],
-  );
-  return rows;
-};
-
-export const getRecentGameSessions = async (
-  db: Pool,
-  gameType: string,
-  limit: number = 10,
-): Promise<GameSessionRow[]> => {
-  const [rows] = await db.execute<GameSessionRow[]>(
-    `SELECT gs.* FROM gameSessions gs
-     JOIN gameTypes gt ON gs.gameTypeId = gt.id
-     WHERE gt.code = ? AND gs.status != 0
-     ORDER BY gs.id DESC LIMIT ?`,
-    [gameType, limit],
-  );
-  return rows;
-};
-
-export const getCurrentGameSession = async (
-  db: Pool,
-  gameType: string,
-): Promise<GameSessionRow | null> => {
-  const [rows] = await db.execute<GameSessionRow[]>(
-    `SELECT gs.* FROM gameSessions gs
-     JOIN gameTypes gt ON gs.gameTypeId = gt.id
-     WHERE gt.code = ? AND gs.status = 0
-     ORDER BY gs.id DESC LIMIT 1`,
-    [gameType],
-  );
-  return rows.length > 0 ? rows[0] : null;
-};
-
-export const getBetsByUser = async (
-  db: Pool,
-  userId: number,
-  offset: number,
-  limit: number,
-): Promise<BetRow[]> => {
-  const [rows] = await db.execute<BetRow[]>(
-    "SELECT * FROM bets WHERE userId = ? AND status != 0 ORDER BY id DESC LIMIT ?, ?",
-    [userId, offset, limit],
-  );
-  return rows;
-};
-
-export const countBetsByUser = async (db: Pool, userId: number): Promise<number> => {
-  const [rows] = await db.execute<[{ count: number }]>(
-    "SELECT COUNT(*) as count FROM bets WHERE userId = ? AND status != 0",
-    [userId],
-  );
-  return rows[0].count;
-};
-
-export const getTotalBetAmount = async (db: Pool, status: number): Promise<number> => {
-  const [rows] = await db.execute<[{ total: string }]>(
-    "SELECT COALESCE(SUM(betAmount), 0) as total FROM bets WHERE status = ?",
-    [status],
-  );
-  return parseFloat(rows[0]?.total || "0");
-};
-
-// Commission and Salary Queries
-export const insertSalaryRecord = async (
-  db: Pool,
-  userId: number,
-  amount: number,
   type: string,
-  time: string,
+  data: Record<string, string>,
 ): Promise<void> => {
+  const fields = Object.keys(data);
+  const values = Object.values(data);
+
+  const setClause = fields.map((f) => `${f} = ?`).join(", ");
+
   await db.execute(
-    "INSERT INTO salaryRecords (userId, amount, type, createdAt) VALUES (?, ?, ?, ?)",
-    [userId, amount, type, getCurrentTimestamp()],
+    `INSERT INTO paymentMethods (type, ${fields.join(", ")})
+     VALUES (?, ${fields.map(() => "?").join(", ")})
+     ON DUPLICATE KEY UPDATE ${setClause}`,
+    [type, ...values, ...values],
   );
 };
 
-export const getSalaryRecords = async (db: Pool): Promise<SalaryRecordRow[]> => {
-  const [rows] = await db.execute<SalaryRecordRow[]>(
-    "SELECT sr.*, u.phone as userPhone FROM salaryRecords sr JOIN users u ON sr.userId = u.id ORDER BY sr.createdAt DESC",
+// Commission Queries
+
+/**
+ * Get commission levels
+ * @param db
+ * @returns
+ */
+
+export const getCommissionLevels = async (db: Pool): Promise<CommissionData[]> => {
+  const [rows] = await db.execute(
+    "SELECT id, level, rateF1, rateF2, rateF3, rateF4, minTurnover FROM commissionLevels ORDER BY level",
+    [],
   );
-  return rows;
+  return rows as CommissionData[];
 };
 
-export const getCommissionLevels = async (db: Pool): Promise<CommissionLevelRow[]> => {
-  const [rows] = await db.execute<CommissionLevelRow[]>(
-    "SELECT * FROM commissionLevels ORDER BY level ASC",
-  );
-  return rows;
-};
+/**
+ * Update commission level
+ * @param db
+ * @param id
+ * @param data
+ * @returns
+ */
 
 export const updateCommissionLevel = async (
   db: Pool,
   id: number,
-  f1: number,
-  f2: number,
-  f3: number,
-  f4: number,
+  data: Partial<CommissionData>,
 ): Promise<void> => {
-  await db.execute(
-    "UPDATE commissionLevels SET rateF1 = ?, rateF2 = ?, rateF3 = ?, rateF4 = ? WHERE id = ?",
-    [f1, f2, f3, f4, id],
-  );
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (data.rateF1 !== undefined) {
+    fields.push("rateF1 = ?");
+    values.push(data.rateF1);
+  }
+  if (data.rateF2 !== undefined) {
+    fields.push("rateF2 = ?");
+    values.push(data.rateF2);
+  }
+  if (data.rateF3 !== undefined) {
+    fields.push("rateF3 = ?");
+    values.push(data.rateF3);
+  }
+  if (data.rateF4 !== undefined) {
+    fields.push("rateF4 = ?");
+    values.push(data.rateF4);
+  }
+  if (data.minTurnover !== undefined) {
+    fields.push("minTurnover = ?");
+    values.push(data.minTurnover);
+  }
+
+  if (fields.length === 0) return;
+
+  values.push(id);
+
+  await db.execute(`UPDATE commissionLevels SET ${fields.join(", ")} WHERE id = ?`, values);
 };
 
-// Admin Config Queries
-export const getAdminConfigs = async (db: Pool): Promise<AdminConfigRow[]> => {
-  const [rows] = await db.execute<AdminConfigRow[]>("SELECT * FROM adminConfigs");
-  return rows;
+// Salary Queries
+
+/**
+ * Get salary records
+ * @param db
+ * @param phone
+ * @returns
+ */
+
+export const getSalaryRecords = async (db: Pool, phone?: string): Promise<any[]> => {
+  let query = `     SELECT s.id, s.userId, s.amount, s.type, s.periodStart, s.periodEnd, s.isPaid, s.createdAt,
+           u.phone, u.userName
+    FROM salaryRecords s
+    JOIN users u ON s.userId = u.id
+  `;
+  const params: any[] = [];
+
+  if (phone) {
+    query += " WHERE u.phone = ?";
+    params.push(phone);
+  }
+
+  query += " ORDER BY s.createdAt DESC";
+
+  const [rows] = await db.execute(query, params);
+  return rows as any[];
 };
 
-export const updateAdminConfig = async (db: Pool, key: string, value: string): Promise<void> => {
-  await db.execute("UPDATE adminConfigs SET configValue = ? WHERE configKey = ?", [value, key]);
-};
+/**
+ * Create salary record
+ * @param db
+ * @param data
+ * @returns
+ */
 
-// Payment Method Queries
-export const getPaymentMethods = async (db: Pool): Promise<PaymentMethodRow[]> => {
-  const [rows] = await db.execute<PaymentMethodRow[]>("SELECT * FROM paymentMethods");
-  return rows;
-};
-
-export const getPaymentMethodByType = async (
+export const createSalaryRecord = async (
   db: Pool,
-  type: string,
-): Promise<PaymentMethodRow | null> => {
-  const [rows] = await db.execute<PaymentMethodRow[]>(
-    "SELECT * FROM paymentMethods WHERE type = ? LIMIT 1",
-    [type],
+  data: {
+    userId: number;
+    amount: number;
+    type: string;
+    periodStart: string;
+    periodEnd: string;
+  },
+): Promise<number> => {
+  const now = Date.now();
+  const [result] = await db.execute<ResultSetHeader>(
+    `INSERT INTO salaryRecords (userId, amount, type, periodStart, periodEnd, isPaid, createdAt)
+     VALUES (?, ?, ?, ?, ?, false, ?)`,
+    [data.userId, data.amount, data.type, data.periodStart, data.periodEnd, now],
   );
-  return rows.length > 0 ? rows[0] : null;
+  return result.insertId;
 };
 
-export const updatePaymentMethod = async (
+// Red Envelope Queries
+
+/**
+ * Get red envelopes
+ * @param db
+ * @param creatorId
+ * @returns
+ */
+
+export const getRedEnvelopes = async (db: Pool, creatorId?: number): Promise<any[]> => {
+  let query = `     SELECT r.id, r.envelopeId, r.creatorId, r.totalAmount, r.totalCount,
+           r.claimedCount, r.status, r.expiredAt, r.createdAt,
+           u.phone as creatorPhone, u.userName as creatorName
+    FROM redEnvelopes r
+    JOIN users u ON r.creatorId = u.id
+  `;
+  const params: any[] = [];
+
+  if (creatorId) {
+    query += " WHERE r.creatorId = ?";
+    params.push(creatorId);
+  }
+
+  query += " ORDER BY r.createdAt DESC";
+
+  const [rows] = await db.execute(query, params);
+  return rows as any[];
+};
+
+/**
+ * Create red envelope
+ * @param db
+ * @param data
+ * @returns
+ */
+
+export const createRedEnvelope = async (
   db: Pool,
-  type: string,
-  data: Partial<PaymentMethodRow>,
-): Promise<void> => {
-  const fields = Object.keys(data).filter((k) => k !== "id" && k !== "createdAt");
-  const values = fields.map((f) => (data as Record<string, unknown>)[f]);
-  const setClause = fields.map((f) => `${f} = ?`).join(", ");
-
-  await db.execute(`UPDATE paymentMethods SET ${setClause} WHERE type = ?`, [...values, type]);
-};
-
-export const deletePaymentMethodsByType = async (db: Pool, type: string): Promise<void> => {
-  await db.execute("DELETE FROM paymentMethods WHERE type = ?", [type]);
-};
-
-export const insertPaymentMethod = async (
-  db: Pool,
-  data: Partial<PaymentMethodRow>,
-): Promise<void> => {
-  const fields = Object.keys(data).filter((k) => k !== "id");
-  const values = fields.map((f) => (data as Record<string, unknown>)[f]);
-  const placeholders = fields.map(() => "?").join(", ");
-
-  await db.execute(
-    `INSERT INTO paymentMethods (${fields.join(", ")}) VALUES (${placeholders})`,
-    values,
+  data: {
+    envelopeId: string;
+    creatorId: number;
+    totalAmount: number;
+    totalCount: number;
+    expiredAt: number;
+  },
+): Promise<number> => {
+  const now = Date.now();
+  const [result] = await db.execute<ResultSetHeader>(
+    `INSERT INTO redEnvelopes (envelopeId, creatorId, totalAmount, totalCount,
+                               claimedCount, status, expiredAt, createdAt)
+     VALUES (?, ?, ?, ?, 0, 0, ?, ?)`,
+    [data.envelopeId, data.creatorId, data.totalAmount, data.totalCount, data.expiredAt, now],
   );
-};
-
-// User Bank Account Queries
-export const getUserBankAccounts = async (
-  db: Pool,
-  userId: number,
-): Promise<UserBankAccountRow[]> => {
-  const [rows] = await db.execute<UserBankAccountRow[]>(
-    "SELECT * FROM userBankAccounts WHERE userId = ?",
-    [userId],
-  );
-  return rows;
-};
-
-export const getDefaultBankAccount = async (
-  db: Pool,
-  userId: number,
-): Promise<UserBankAccountRow | null> => {
-  const [rows] = await db.execute<UserBankAccountRow[]>(
-    "SELECT * FROM userBankAccounts WHERE userId = ? AND isDefault = TRUE LIMIT 1",
-    [userId],
-  );
-  return rows.length > 0 ? rows[0] : null;
-};
-
-// Statistics Queries
-export const getActiveUsersCount = async (db: Pool): Promise<number> => {
-  const [rows] = await db.execute<[{ count: number }]>(
-    "SELECT COUNT(*) as count FROM users WHERE status = 0",
-  );
-  return rows[0].count;
-};
-
-export const getInactiveUsersCount = async (db: Pool): Promise<number> => {
-  const [rows] = await db.execute<[{ count: number }]>(
-    "SELECT COUNT(*) as count FROM users WHERE status != 0",
-  );
-  return rows[0].count;
-};
-
-export const getTotalDeposits = async (db: Pool): Promise<number> => {
-  const [rows] = await db.execute<[{ total: string }]>(
-    "SELECT COALESCE(SUM(amount), 0) as total FROM deposits WHERE status = 2",
-  );
-  return parseFloat(rows[0]?.total || "0");
-};
-
-export const getTotalWithdrawals = async (db: Pool): Promise<number> => {
-  const [rows] = await db.execute<[{ total: string }]>(
-    "SELECT COALESCE(SUM(amount), 0) as total FROM withdrawals WHERE status = 2",
-  );
-  return parseFloat(rows[0]?.total || "0");
-};
-
-// Downline Queries
-export const getDirectSubordinates = async (db: Pool, userId: number): Promise<UserRow[]> => {
-  const [rows] = await db.execute<UserRow[]>(
-    "SELECT phone, referralCode, invitedBy, createdAt FROM users WHERE invitedBy = ?",
-    [userId],
-  );
-  return rows;
-};
-
-export const getSubordinatesByLevel = async (db: Pool, userIds: number[]): Promise<UserRow[]> => {
-  if (userIds.length === 0) return [];
-  const placeholders = userIds.map(() => "?").join(",");
-  const [rows] = await db.execute<UserRow[]>(
-    `SELECT phone, referralCode, invitedBy, createdAt FROM users WHERE invitedBy IN (${placeholders})`,
-    userIds,
-  );
-  return rows;
+  return result.insertId;
 };

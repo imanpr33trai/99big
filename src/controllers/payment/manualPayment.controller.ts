@@ -1,200 +1,245 @@
-import { Request, Response } from "express";
-import { Pool } from "mysql2/promise";
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { PaymentApiResponse, PaymentMethodType, PaymentStatus } from '../../types/payment.types';
+import { getPaymentMethodByType } from '../../db/payment.queries';
+import { generateUPIQRCode } from '../../services/payment/upiQr.service';
 import {
-  cancelRechargeById,
-  createRecharge,
-  getCurrentTimeForTodayField,
-  getRechargesByPhoneAndStatus,
-} from "../../db/payment.queries";
-import { getRechargeOrderId, getUserDataByAuthToken } from "../../services/paymentHelpers.service";
-import { generateUPIQRCode } from "../../services/upiQr.service";
-import { PaymentMethodsMap } from "../../types/payment.types";
+  getUserDataByAuthToken,
+  cancelPendingDeposits,
+  validateUTR,
+  getMinimumDepositAmount
+} from '../../services/payment/paymentHelpers.service';
+import { createDepositRecord } from '../../services/payment/deposit.service';
+import { getCurrentTimeForTodayField } from '../../utils/payment.helpers';
 
-export const initiateManualUPIPaymentHandler =
-  (db: Pool) =>
-  async (req: Request, res: Response): Promise<void> => {
-    const [bankRows] = await db.execute("SELECT * FROM paymentMethods WHERE type = 'upi'");
-    const bankData = (bankRows as any[])[0] || {};
+/**
+ * Initiate Manual UPI Payment (Show QR Code Page)
+ */
+export const initiateManualUPIPaymentHandler = (db: Pool) => async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const amount = parseFloat(req.query.am as string);
 
-    const momo = {
-      bankName: bankData.bankName || "",
-      username: bankData.accountName || "",
-      upiId: bankData.upiId || "",
-      walletAddress: bankData.qrCodeUrl || "",
-    };
+    if (isNaN(amount) || amount <= 0) {
+      res.status(400).json({ message: 'Invalid amount', status: false });
+      return;
+    }
 
-    const amount = req.query.am as string;
-    const qrCodeUrl = await generateUPIQRCode(momo.upiId, parseFloat(amount));
+    // 1. Get UPI details from database
+    const paymentMethod = await getPaymentMethodByType(db, PaymentMethodType.UPI_MANUAL);
+    if (!paymentMethod || !paymentMethod.upiId) {
+      res.status(400).json({ message: 'Payment method not configured', status: false });
+      return;
+    }
 
-    res.render("wallet/manual_payment.ejs", {
+    // 2. Generate QR code
+    const qrCodeUrl = await generateUPIQRCode(paymentMethod.upiId, amount, paymentMethod.accountName || undefined);
+
+    // 3. Render payment page
+    res.render('wallet/manual_payment.ejs', {
       Amount: amount,
-      UpiId: momo.upiId,
+      UpiId: paymentMethod.upiId,
       QRCodeUrl: qrCodeUrl,
     });
-  };
 
-export const initiateManualUSDTPaymentHandler =
-  (db: Pool) =>
-  async (req: Request, res: Response): Promise<void> => {
-    const [bankRows] = await db.execute("SELECT * FROM paymentMethods WHERE type = 'crypto'");
-    const bankData = (bankRows as any[])[0] || {};
-
-    const momo = {
-      bankName: bankData.bankName || "",
-      username: bankData.accountName || "",
-      upiId: bankData.upiId || "",
-      walletAddress: bankData.cryptoAddress || "",
-    };
-
-    res.render("wallet/usdt_manual_payment.ejs", {
-      Amount: req.query.am,
-      UsdtWalletAddress: momo.walletAddress,
+  } catch (error) {
+    console.error('initiateManualUPIPaymentHandler error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Something went wrong!',
+      timestamp: Date.now(),
     });
-  };
+  }
+};
 
-export const addManualUPIPaymentRequestHandler =
-  (db: Pool) =>
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const data = req.body;
-      const auth = req.cookies?.auth;
-      const money = parseInt(data.money);
-      const utr = parseInt(data.utr);
-      const minimumMoneyAllowed = parseInt(process.env.MINIMUM_MONEY || "100");
-      const timeNow = new Date().toISOString();
+/**
+ * Submit Manual UPI Payment Request
+ */
+export const addManualUPIPaymentRequestHandler = (db: Pool) => async (
+  req: Request,
+  res: Response<PaymentApiResponse>
+): Promise<void> => {
+  try {
+    const { money, utr } = req.body;
+    const auth = req.cookies.auth;
+    const timeNow = new Date().toISOString();
 
-      if (!money || money < minimumMoneyAllowed) {
-        res.status(400).json({
-          message: `Money is Required and it should be ₹${minimumMoneyAllowed} or above!`,
-          status: false,
-          timeStamp: timeNow,
-        });
-        return;
-      }
-
-      if (!utr || String(utr).length !== 12) {
-        res.status(400).json({
-          message: "UPI Ref No. or UTR is Required And it should be 12 digit long",
-          status: false,
-          timeStamp: timeNow,
-        });
-        return;
-      }
-
-      const user = await getUserDataByAuthToken(db, auth);
-
-      const pendingRecharges = await getRechargesByPhoneAndStatus(
-        db,
-        user.phone,
-        0,
-        PaymentMethodsMap.UPI_GATEWAY,
-      );
-
-      if (pendingRecharges.length !== 0) {
-        await Promise.all(pendingRecharges.map((r) => cancelRechargeById(db, r.id!)));
-      }
-
-      const orderId = getRechargeOrderId();
-
-      const recharge = await createRecharge(db, {
-        orderId,
-        transactionId: "NULL",
-        utr: String(utr),
-        phone: user.phone,
-        money,
-        type: PaymentMethodsMap.UPI_MANUAL,
-        status: 0,
-        today: getCurrentTimeForTodayField(),
-        url: "NULL",
-        time: timeNow,
-      });
-
-      res.status(200).json({
-        message: "Payment Requested successfully Your Balance will update shortly!",
-        recharge,
-        status: true,
+    // 1. Validate input
+    const minimumMoney = getMinimumDepositAmount();
+    if (!money || money < minimumMoney) {
+      res.status(400).json({
+        message: `Money is Required and it should be ₹${minimumMoney} or above!`,
+        status: false,
         timeStamp: timeNow,
       });
-    } catch (error) {
-      console.log(error);
-      res.status(500).json({
-        status: false,
-        message: "Something went wrong!",
-        timestamp: new Date().toISOString(),
-      });
+      return;
     }
-  };
 
-export const addManualUSDTPaymentRequestHandler =
-  (db: Pool) =>
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const data = req.body;
-      const auth = req.cookies?.auth;
-      const moneyUsdt = parseInt(data.money);
-      const money = moneyUsdt * 82;
-      const utr = parseInt(data.utr);
-      const minimumMoneyAllowed = parseInt(process.env.MINIMUM_MONEY || "100");
-      const timeNow = new Date().toISOString();
-
-      if (!money || money < minimumMoneyAllowed) {
-        res.status(400).json({
-          message: `Money is Required and it should be ₹${minimumMoneyAllowed} or ${(minimumMoneyAllowed / 82).toFixed(2)} or above!`,
-          status: false,
-          timeStamp: timeNow,
-        });
-        return;
-      }
-
-      if (!utr) {
-        res.status(400).json({
-          message: "Ref No. or UTR is Required",
-          status: false,
-          timeStamp: timeNow,
-        });
-        return;
-      }
-
-      const user = await getUserDataByAuthToken(db, auth);
-
-      const pendingRecharges = await getRechargesByPhoneAndStatus(
-        db,
-        user.phone,
-        0,
-        PaymentMethodsMap.UPI_GATEWAY,
-      );
-
-      if (pendingRecharges.length !== 0) {
-        await Promise.all(pendingRecharges.map((r) => cancelRechargeById(db, r.id!)));
-      }
-
-      const orderId = getRechargeOrderId();
-
-      const recharge = await createRecharge(db, {
-        orderId,
-        transactionId: "NULL",
-        utr: String(utr),
-        phone: user.phone,
-        money,
-        type: PaymentMethodsMap.USDT_MANUAL,
-        status: 0,
-        today: getCurrentTimeForTodayField(),
-        url: "NULL",
-        time: timeNow,
-      });
-
-      res.status(200).json({
-        message: "Payment Requested successfully Your Balance will update shortly!",
-        recharge,
-        status: true,
+    if (!utr || !validateUTR(utr)) {
+      res.status(400).json({
+        message: 'UPI Ref No. or UTR is Required And it should be 12 digit long',
+        status: false,
         timeStamp: timeNow,
       });
-    } catch (error) {
-      console.log(error);
-      res.status(500).json({
-        status: false,
-        message: "Something went wrong!",
-        timestamp: new Date().toISOString(),
-      });
+      return;
     }
-  };
+
+    // 2. Get user
+    const user = await getUserDataByAuthToken(db, auth);
+    if (!user) {
+      res.status(401).json({ message: 'Unauthorized', status: false, timeStamp: timeNow });
+      return;
+    }
+
+    // 3. Cancel pending deposits
+    await cancelPendingDeposits(db, user.phone);
+
+    // 4. Create deposit
+    const deposit = await createDepositRecord(db, {
+      transactionId: null,
+      utr,
+      phone: user.phone,
+      money,
+      type: PaymentMethodType.UPI_MANUAL,
+      status: PaymentStatus.PENDING,
+      today: getCurrentTimeForTodayField(),
+      url: 'NULL',
+      time: timeNow,
+      ipAddress: req.ip || null,
+    });
+
+    // 5. Return success
+    res.status(200).json({
+      message: 'Payment Requested successfully! Your balance will update shortly!',
+      recharge: deposit,
+      status: true,
+      timeStamp: timeNow,
+    });
+
+  } catch (error) {
+    console.error('addManualUPIPaymentRequestHandler error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Something went wrong!',
+      timestamp: Date.now(),
+    });
+  }
+};
+
+/**
+ * Initiate Manual USDT Payment (Show Address Page)
+ */
+export const initiateManualUSDTPaymentHandler = (db: Pool) => async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const amount = parseFloat(req.query.am as string);
+
+    if (isNaN(amount) || amount <= 0) {
+      res.status(400).json({ message: 'Invalid amount', status: false });
+      return;
+    }
+
+    // 1. Get USDT details from database
+    const paymentMethod = await getPaymentMethodByType(db, PaymentMethodType.USDT_MANUAL);
+    if (!paymentMethod || !paymentMethod.cryptoAddress) {
+      res.status(400).json({ message: 'Payment method not configured', status: false });
+      return;
+    }
+
+    // 2. Render payment page
+    res.render('wallet/usdt_manual_payment.ejs', {
+      Amount: amount,
+      UsdtWalletAddress: paymentMethod.cryptoAddress,
+      ConversionRate: 82, // 1 USDT = ₹82
+    });
+
+  } catch (error) {
+    console.error('initiateManualUSDTPaymentHandler error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Something went wrong!',
+      timestamp: Date.now(),
+    });
+  }
+};
+
+/**
+ * Submit Manual USDT Payment Request
+ */
+export const addManualUSDTPaymentRequestHandler = (db: Pool) => async (
+  req: Request,
+  res: Response<PaymentApiResponse>
+): Promise<void> => {
+  try {
+    const { money, utr } = req.body;
+    const auth = req.cookies.auth;
+    const timeNow = new Date().toISOString();
+
+    // 1. Validate input
+    const minimumMoney = getMinimumDepositAmount();
+    const conversionRate = 82; // 1 USDT = ₹82
+    const moneyINR = money * conversionRate;
+
+    if (!money || moneyINR < minimumMoney) {
+      res.status(400).json({
+        message: `Money is Required and it should be ₹${minimumMoney} or ${(minimumMoney / conversionRate).toFixed(2)} USDT or above!`,
+        status: false,
+        timeStamp: timeNow,
+      });
+      return;
+    }
+
+    if (!utr || utr.length < 10) {
+      res.status(400).json({
+        message: 'Transaction Hash/Ref No. is Required',
+        status: false,
+        timeStamp: timeNow,
+      });
+      return;
+    }
+
+    // 2. Get user
+    const user = await getUserDataByAuthToken(db, auth);
+    if (!user) {
+      res.status(401).json({ message: 'Unauthorized', status: false, timeStamp: timeNow });
+      return;
+    }
+
+    // 3. Cancel pending deposits
+    await cancelPendingDeposits(db, user.phone);
+
+    // 4. Create deposit
+    const deposit = await createDepositRecord(db, {
+      transactionId: null,
+      utr,
+      phone: user.phone,
+      money: moneyINR,
+      type: PaymentMethodType.USDT_MANUAL,
+      status: PaymentStatus.PENDING,
+      today: getCurrentTimeForTodayField(),
+      url: 'NULL',
+      time: timeNow,
+      ipAddress: req.ip || null,
+    });
+
+    // 5. Return success
+    res.status(200).json({
+      message: 'Payment Requested successfully! Your balance will update shortly!',
+      recharge: deposit,
+      status: true,
+      timeStamp: timeNow,
+    });
+
+  } catch (error) {
+    console.error('addManualUSDTPaymentRequestHandler error:', error);
+    res.status(500).json({
+      status: false,
+      message: 'Something went wrong!',
+      timestamp: Date.now(),
+    });
+  }
+};

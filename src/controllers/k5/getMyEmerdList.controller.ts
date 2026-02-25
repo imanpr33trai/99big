@@ -1,66 +1,63 @@
-import { Request, Response } from "express";
-import { Pool } from "mysql2/promise";
-import { z } from "zod";
-import { countUserBets5d, getUserBets5d, getUserByToken } from "../../db/5d.queries";
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { K5DMyBetsSchema, K5DApiResponse, K5DMyBetsResponse } from '../../types/5d.types';
+import { getUser5DBets } from '../../db/5d.queries';
 
-const myBetsSchema = z.object({
-  gameJoin: z.enum(["1", "3", "5", "10"]),
-  pageno: z.number().int().min(0),
-  pageto: z.number().int().min(1),
-});
+/\*\*
 
-export const getMyEmerdList5dHandler =
-  (db: Pool) =>
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const auth = req.cookies?.auth;
-      if (!auth) {
-        res.status(401).json({ code: 0, msg: "No auth", data: { gameslist: [] }, status: false });
+- Handler for getting user's 5D bet history
+  \*/
+  export const getMyEmerdList5dHandler = (db: Pool) => async (req: Request, res: Response): Promise<void> => {
+  try {
+  // 1. Validate input
+  const validationResult = K5DMyBetsSchema.safeParse(req.body);
+
+      if (!validationResult.success) {
+        const response: K5DApiResponse = {
+          message: 'Invalid parameters',
+          status: false,
+          timeStamp: Date.now(),
+        };
+        res.status(400).json(response);
         return;
       }
 
-      const parseResult = myBetsSchema.safeParse(req.body);
-      if (!parseResult.success) {
-        res
-          .status(400)
-          .json({ code: 0, msg: "Invalid params", data: { gameslist: [] }, status: false });
-        return;
-      }
+      const { gameJoin, pageno, pageto } = validationResult.data;
 
-      const { gameJoin, pageno, pageto } = parseResult.data;
-      const game = parseInt(gameJoin);
-
-      const user = await getUserByToken(db, auth);
+      // 2. Get authenticated user
+      const user = req.user;
       if (!user) {
-        res
-          .status(401)
-          .json({ code: 0, msg: "User not found", data: { gameslist: [] }, status: false });
+        const response: K5DApiResponse = {
+          message: 'User not authenticated',
+          status: false,
+          timeStamp: Date.now(),
+        };
+        res.status(401).json(response);
         return;
       }
 
-      const bets = await getUserBets5d(db, user.phone, game, pageno, pageto);
-      const total = await countUserBets5d(db, user.phone, game);
+      // 3. Get user's bets
+      const bets = await getUser5DBets(db, user.id, parseInt(gameJoin), pageno, pageto);
 
-      if (bets.length === 0) {
-        res
-          .status(200)
-          .json({ code: 0, msg: "No more data", data: { gameslist: [] }, page: 1, status: false });
-        return;
-      }
-
-      const page = Math.ceil(total / 10);
-
-      const sanitized = bets.map(({ id, phone, code, invite, level, game, ...others }) => others);
-
-      res.status(200).json({
+      const response: K5DApiResponse<K5DMyBetsResponse> = {
         code: 0,
-        msg: "Get Success",
-        data: { gameslist: sanitized },
-        page,
+        msg: 'Get success',
+        data: {
+          gameslist: bets,
+          page: pageno,
+        },
         status: true,
-      });
-    } catch (error) {
-      console.error("Get my emerd list 5D error:", error);
-      res.status(500).json({ code: 0, msg: "Error", data: { gameslist: [] }, status: false });
-    }
-  };
+      };
+
+      res.json(response);
+
+} catch (error) {
+console.error('My bets fetch error:', error);
+const response: K5DApiResponse = {
+message: 'Internal server error',
+status: false,
+timeStamp: Date.now(),
+};
+res.status(500).json(response);
+}
+};

@@ -1,379 +1,304 @@
 import { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
-import { CommissionLevel, K3BetRecord, K3GameSession, ReferrerInfo } from "src/types/k3.types";
+import { K3BetRecord, K3GameSession } from "../types/k3.types";
+import { updateUserBalance } from "./daily.queries";
 
-export const getCommissionLevels = async (db: Pool): Promise<CommissionLevel> => {
-  const [rows] = await db.execute(
-    "SELECT level, rateF1, rateF2, rateF3, rateF4 FROM commissionLevels ORDER BY level ASC LIMIT 1",
-    [],
-  );
-  return (
-    (rows as CommissionLevel[])[0] || {
-      level: 0,
-      rateF1: 0,
-      rateF2: 0,
-      rateF3: 0,
-      rateF4: 0,
-    }
-  );
-};
-
-export const findUserByToken = async (
-  db: Pool,
-  token: string,
-): Promise<{ phone: string; referralCode: string; invitedBy: string } | null> => {
-  const [rows] = await db.execute(
-    "SELECT phone, referralCode, invitedBy FROM users WHERE authToken = ? AND isVerified = TRUE LIMIT 1",
-    [token],
-  );
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
-};
-
-export const findReferrerByCode = async (db: Pool, code: string): Promise<ReferrerInfo | null> => {
-  const [rows] = await db.execute(
-    "SELECT phone, referralCode, invitedBy, rank FROM users WHERE referralCode = ? AND isVerified = TRUE LIMIT 1",
-    [code],
-  );
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
-};
-
-export const distributeCommissionToUser = async (
-  db: Pool,
-  phone: string,
-  amount: number,
-  isF1: boolean,
-): Promise<void> => {
-  if (isF1) {
-    // F1 gets special tracking (commissionF1)
-    await db.execute(
-      `UPDATE users
-       SET balance = balance + ?,
-           commissionF1 = commissionF1 + ?,
-           commissionF = commissionF + ?,
-           commissionToday = commissionToday + ?,
-           updatedAt = ?
-       WHERE phone = ?`,
-      [amount, amount, amount, amount, Date.now(), phone],
-    );
-  } else {
-    // F2-F4 get standard tracking
-    await db.execute(
-      `UPDATE users
-       SET balance = balance + ?,
-           commissionF = commissionF + ?,
-           commissionToday = commissionToday + ?,
-           updatedAt = ?
-       WHERE phone = ?`,
-      [amount, amount, amount, Date.now(), phone],
-    );
-  }
-};
-
-export const logCommissionDistribution = async (
-  db: Pool,
-  userId: number,
-  fromUserId: number,
-  level: number,
-  amount: number,
-  sourceType: string,
-): Promise<void> => {
-  await db.execute(
-    `INSERT INTO commissionRecords
-     (userId, fromUserId, level, amount, sourceType, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [userId, fromUserId, level, amount, sourceType, Date.now()],
-  );
-};
-
-// ============================================================================
-// SESSION QUERIES
-// ============================================================================
+// ==========================================
+// GAME SESSION QUERIES
+// ==========================================
 
 export const getCurrentK3Session = async (
   db: Pool,
-  duration: number,
+  game: number,
 ): Promise<K3GameSession | null> => {
   const [rows] = await db.execute<RowDataPacket[]>(
-    `SELECT id, period, gameTypeId, result, status, startedAt, closedAt, resultAt
-     FROM gameSessions
-     WHERE gameTypeId = (SELECT id FROM gameTypes WHERE code = 'k3')
-     AND duration = ?
-     AND status = 'open'
-     ORDER BY startedAt DESC
-     LIMIT 1`,
-    [duration],
+    "SELECT * FROM k3Games WHERE status = 0 AND game = ? ORDER BY id DESC LIMIT 1",
+    [game],
   );
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
+  return rows[0] as K3GameSession | null;
 };
 
-export const getK3SessionByPeriod = async (
+export const getLatestK3Result = async (db: Pool, game: number): Promise<K3GameSession | null> => {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    "SELECT * FROM k3Games WHERE status != 0 AND game = ? ORDER BY id DESC LIMIT 1",
+    [game],
+  );
+  return rows[0] as K3GameSession | null;
+};
+
+export const createK3Session = async (db: Pool, period: number, game: number): Promise<void> => {
+  await db.execute(
+    "INSERT INTO k3Games SET period = ?, result = ?, game = ?, status = ?, time = ?",
+    [period, "0", game, 0, Date.now()],
+  );
+};
+
+export const updateK3Result = async (
   db: Pool,
   period: string,
-): Promise<K3GameSession | null> => {
-  const [rows] = await db.execute<RowDataPacket[]>(
-    `SELECT id, period, gameTypeId, result, status, startedAt, closedAt, resultAt
-     FROM gameSessions
-     WHERE period = ? AND gameTypeId = (SELECT id FROM gameTypes WHERE code = 'k3')
-     LIMIT 1`,
-    [period],
-  );
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
+  result: string,
+  game: number,
+): Promise<void> => {
+  await db.execute("UPDATE k3Games SET result = ?, status = ? WHERE period = ? AND game = ?", [
+    result,
+    1,
+    period,
+    game,
+  ]);
 };
 
-// ============================================================================
-// BET QUERIES
-// ============================================================================
+export const getK3History = async (
+  db: Pool,
+  game: number,
+  page: number,
+  limit: number,
+): Promise<K3GameSession[]> => {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    "SELECT * FROM k3Games WHERE status != 0 AND game = ? ORDER BY id DESC LIMIT ?, ?",
+    [game, page, limit],
+  );
+  return rows as K3GameSession[];
+};
 
-export const createK3Bet = async (db: Pool, bet: Omit<K3BetRecord, "id">): Promise<number> => {
+// ==========================================
+// BET QUERIES
+// ==========================================
+
+export const createK3Bet = async (db: Pool, data: Partial<K3BetRecord>): Promise<K3BetRecord> => {
   const [result] = await db.execute<ResultSetHeader>(
-    `INSERT INTO bets
-     (sessionId, userId, gameTypeId, joinType, betSelections, multiplier,
-      betAmount, totalAmount, potentialWin, status, createdAt)
-     VALUES (?, ?, (SELECT id FROM gameTypes WHERE code = 'k3'), ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+    `INSERT INTO k3Bets
+     (productId, userId, referralCode, invitedBy, stage, userLevel, betAmount, odds, quantity, fee, winAmount, game, joinBet, gameType, bet, result, status, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      bet.sessionId,
-      bet.userId,
-      bet.joinType,
-      JSON.stringify(bet.betSelections),
-      bet.multiplier,
-      bet.betAmount,
-      bet.totalAmount,
-      bet.potentialWin,
-      bet.createdAt,
+      data.productId || 0,
+      data.userId,
+      data.referralCode || null,
+      data.invitedBy || null,
+      data.stage,
+      data.userLevel || 0,
+      data.betAmount,
+      data.odds || 0,
+      data.quantity || 0,
+      data.fee,
+      data.winAmount || 0,
+      data.game,
+      data.joinBet || "",
+      data.betType || "",
+      data.selection,
+      data.result || null,
+      data.status || 0,
+      Date.now(),
     ],
   );
-  return result.insertId;
+
+  return {
+    id: result.insertId,
+    ...data,
+    createdAt: Date.now(),
+  } as K3BetRecord;
 };
 
 export const getUserK3Bets = async (
   db: Pool,
   userId: number,
-  limit: number = 20,
+  game: number,
+  page: number,
+  limit: number,
 ): Promise<K3BetRecord[]> => {
   const [rows] = await db.execute<RowDataPacket[]>(
-    `SELECT b.*, gs.period, gs.result
-     FROM bets b
-     JOIN gameSessions gs ON b.sessionId = gs.id
-     WHERE b.userId = ? AND b.gameTypeId = (SELECT id FROM gameTypes WHERE code = 'k3')
-     ORDER BY b.createdAt DESC
-     LIMIT ?`,
-    [userId, limit],
+    "SELECT * FROM k3Bets WHERE userId = ? AND game = ? ORDER BY id DESC LIMIT ?, ?",
+    [userId, game, page, limit],
   );
   return rows as K3BetRecord[];
 };
 
-export const getK3BetById = async (db: Pool, betId: number): Promise<K3BetRecord | null> => {
-  const [rows] = await db.execute<RowDataPacket[]>(
-    `SELECT b.*, gs.period, gs.result
-     FROM bets b
-     JOIN gameSessions gs ON b.sessionId = gs.id
-     WHERE b.id = ? AND b.gameTypeId = (SELECT id FROM gameTypes WHERE code = 'k3')
-     LIMIT 1`,
-    [betId],
-  );
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
-};
-
-// ============================================================================
-// LEGACY SUPPORT (for migration)
-// ============================================================================
-
-export const createLegacyK3Bet = async (db: Pool, betData: any): Promise<void> => {
-  await db.execute(
-    `INSERT INTO k3Bets
-     (productId, userId, referralCode, invitedBy, stage, userLevel,
-      betAmount, odds, quantity, fee, winAmount, game, joinBet,
-      gameType, bet, result, status, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      betData.productId,
-      betData.userId,
-      betData.referralCode,
-      betData.invitedBy,
-      betData.stage,
-      betData.userLevel,
-      betData.betAmount,
-      betData.odds,
-      betData.quantity,
-      betData.fee,
-      betData.winAmount,
-      betData.game,
-      betData.joinBet,
-      betData.gameType,
-      betData.bet,
-      betData.result,
-      betData.status,
-      betData.createdAt,
-    ],
-  );
-};
-
-// Add to existing file
-
-export const getK3CurrentSession = async (
+export const getPendingK3Bets = async (
   db: Pool,
   game: number,
-): Promise<{ period: string } | null> => {
-  const [rows] = await db.execute(
-    `SELECT period FROM k3Games
-     WHERE status = 0 AND game = ?
-     ORDER BY id DESC LIMIT 1`,
-    [game],
-  );
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
+  betType?: string,
+): Promise<K3BetRecord[]> => {
+  let query = "SELECT * FROM k3Bets WHERE status = 0 AND game = ?";
+  const params: (number | string)[] = [game];
+
+  if (betType) {
+    query += " AND gameType = ?";
+    params.push(betType);
+  }
+
+  const [rows] = await db.execute<RowDataPacket[]>(query, params);
+  return rows as K3BetRecord[];
 };
 
-export const getUserBalanceByToken = async (
+export const updateK3BetStatus = async (
   db: Pool,
-  token: string,
-): Promise<{
-  phone: string;
-  referralCode: string;
-  invitedBy: string;
-  userLevel: number;
-  balance: number;
-} | null> => {
-  const [rows] = await db.execute(
-    `SELECT phone, referralCode, invitedBy, userLevel, balance
-     FROM users
-     WHERE authToken = ? AND isVerified = TRUE
-     LIMIT 1`,
-    [token],
-  );
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
+  betId: number,
+  status: number,
+  winAmount?: number,
+): Promise<void> => {
+  if (winAmount !== undefined) {
+    await db.execute("UPDATE k3Bets SET status = ?, winAmount = ?, result = ? WHERE id = ?", [
+      status,
+      winAmount,
+      winAmount > 0 ? 1 : 0,
+      betId,
+    ]);
+  } else {
+    await db.execute("UPDATE k3Bets SET status = ? WHERE id = ?", [status, betId]);
+  }
 };
 
-export const createK3Bet = async (
+export const updateK3BetsByPeriod = async (
   db: Pool,
-  bet: {
-    idProduct: string;
-    phone: string;
-    code: string;
-    invitedBy: string;
-    stage: string;
+  period: string,
+  game: number,
+  result: string,
+): Promise<void> => {
+  await db.execute("UPDATE k3Bets SET result = ? WHERE stage = ? AND game = ? AND status = 0", [
+    result,
+    period,
+    game,
+  ]);
+};
+
+// ==========================================
+// COMMISSION QUERIES
+// ==========================================
+
+export const getCommissionRates = async (db: Pool): Promise<any[]> => {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    "SELECT * FROM commissionLevels ORDER BY level ASC",
+  );
+  return rows;
+};
+
+export const createCommissionRecord = async (
+  db: Pool,
+  data: {
+    userId: number;
+    fromUserId: number;
     level: number;
-    money: number;
-    price: number;
     amount: number;
-    fee: number;
-    game: number;
-    joinBet: number;
-    typeGame: string;
-    bet: string;
-    status: number;
-    time: number;
+    sourceType: string;
+    sourceId: number;
   },
 ): Promise<void> => {
   await db.execute(
-    `INSERT INTO k3Bets
-     (idProduct, phone, code, invitedBy, stage, level, money, price,
-      amount, fee, game, joinBet, typeGame, bet, status, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO commissionRecords
+     (userId, fromUserId, level, amount, sourceType, sourceId, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
-      bet.idProduct,
-      bet.phone,
-      bet.code,
-      bet.invitedBy,
-      bet.stage,
-      bet.level,
-      bet.money,
-      bet.price,
-      bet.amount,
-      bet.fee,
-      bet.game,
-      bet.joinBet,
-      bet.typeGame,
-      bet.bet,
-      bet.status,
-      bet.time,
+      data.userId,
+      data.fromUserId,
+      data.level,
+      data.amount,
+      data.sourceType,
+      data.sourceId,
+      Date.now(),
     ],
   );
 };
 
-export const updateUserBalance = async (db: Pool, token: string, amount: number): Promise<void> => {
-  await db.execute("UPDATE users SET balance = balance + ? WHERE authToken = ?", [amount, token]);
-};
-
-// Add to existing k3.queries.ts
-
-export const getK3CurrentPeriod = async (
+export const distributeK3Commission = async (
   db: Pool,
-  game: number,
-): Promise<{ period: string } | null> => {
-  const [rows] = await db.query(
-    `SELECT period FROM k3 WHERE status = 0 AND game = ? ORDER BY id DESC LIMIT 1`,
-    [game],
-  );
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
-};
-
-export const getAdminK3Settings = async (db: Pool): Promise<any | null> => {
-  const [rows] = await db.query("SELECT * FROM `admin` LIMIT 1");
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
-};
-
-export const updateK3Result = async (
-  db: Pool,
-  game: number,
-  period: string,
-  result: string,
-  status: number,
+  userId: number,
+  turnover: number,
 ): Promise<void> => {
-  await db.execute(`UPDATE k3 SET result = ?, status = ? WHERE period = ? AND game = ?`, [
-    result,
-    status,
-    period,
-    game,
+  // Get user's referral chain
+  const [userRows] = await db.execute<RowDataPacket[]>(
+    "SELECT invitedBy FROM users WHERE id = ? LIMIT 1",
+    [userId],
+  );
+
+  if (!userRows || userRows.length === 0) return;
+
+  const user = userRows[0];
+  if (!user.invitedBy) return;
+
+  // Get commission rates
+  const rates = await getCommissionRates(db);
+
+  // Distribute through F1-F4 levels
+  let currentUserId = user.invitedBy;
+  for (let level = 1; level <= 4 && currentUserId; level++) {
+    const [referrerRows] = await db.execute<RowDataPacket[]>(
+      "SELECT id, userLevel, invitedBy FROM users WHERE id = ? LIMIT 1",
+      [currentUserId],
+    );
+
+    if (!referrerRows || referrerRows.length === 0) break;
+
+    const referrer = referrerRows[0];
+
+    // Check if referrer has sufficient level
+    if (referrer.userLevel >= level) {
+      const rate = rates[level - 1]?.rateF1 || 0;
+      const commission = (turnover / 100) * rate;
+
+      if (commission > 0) {
+        await createCommissionRecord(db, {
+          userId: referrer.id,
+          fromUserId: userId,
+          level,
+          amount: commission,
+          sourceType: "k3_bet",
+          sourceId: userId,
+        });
+
+        await updateUserBalance(db, referrer.id, commission);
+      }
+    }
+
+    currentUserId = referrer.invitedBy;
+  }
+};
+
+// ==========================================
+// SETTINGS QUERIES
+// ==========================================
+
+export const getK3ControlSettings = async (db: Pool, game: number): Promise<string | null> => {
+  const keys: Record<number, string> = {
+    1: "k3d_control",
+    3: "k3d3_control",
+    5: "k3d5_control",
+    10: "k3d10_control",
+  };
+
+  const [rows] = await db.execute<RowDataPacket[]>(
+    "SELECT configValue FROM adminConfigs WHERE configKey = ? LIMIT 1",
+    [keys[game] || ""],
+  );
+
+  return rows[0]?.configValue || null;
+};
+
+export const updateK3ControlSettings = async (
+  db: Pool,
+  game: number,
+  value: string,
+): Promise<void> => {
+  const keys: Record<number, string> = {
+    1: "k3d_control",
+    3: "k3d3_control",
+    5: "k3d5_control",
+    10: "k3d10_control",
+  };
+
+  await db.execute("UPDATE adminConfigs SET configValue = ? WHERE configKey = ?", [
+    value,
+    keys[game] || "",
   ]);
 };
 
-export const createK3Period = async (
-  db: Pool,
-  period: number,
-  game: number,
-  time: number,
-): Promise<void> => {
-  await db.execute(`INSERT INTO k3 (period, result, game, status, time) VALUES (?, ?, ?, ?, ?)`, [
-    period,
-    0,
-    game,
-    0,
-    time,
-  ]);
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+
+export const formatTimeIST = (timestamp?: number): string => {
+  const date = timestamp ? new Date(timestamp) : new Date();
+  return date.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 };
 
-export const updateAdminK3Setting = async (db: Pool, key: string, value: string): Promise<void> => {
-  await db.execute(`UPDATE admin SET ${key} = ?`, [value]);
-};
-
-export const getUserByToken = async (db: Pool, token: string): Promise<any | null> => {
-  const [rows] = await db.execute(
-    "SELECT phone, referralCode, invitedBy, userLevel, balance FROM users WHERE authToken = ? AND isVerified = TRUE LIMIT 1",
-    [token],
-  );
-  return (rows as any[]).length > 0 ? (rows as any[])[0] : null;
-};
-
-export const getUserBets = async (
-  db: Pool,
-  phone: string,
-  game: number,
-  offset: number,
-  limit: number,
-): Promise<any[]> => {
-  const [rows] = await db.execute(
-    `SELECT * FROM result_k3
-     WHERE phone = ? AND game = ?
-     ORDER BY id DESC
-     LIMIT ?, ?`,
-    [phone, game, offset, limit],
-  );
-  return rows as any[];
-};
-
-export const countUserBets = async (db: Pool, phone: string, game: number): Promise<number> => {
-  const [rows] = await db.execute(
-    `SELECT COUNT(*) as total FROM result_k3 WHERE phone = ? AND game = ?`,
-    [phone, game],
-  );
-  return (rows as any[])[0]?.total || 0;
+export const getTodayString = (): string => {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };

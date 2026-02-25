@@ -1,50 +1,76 @@
-import { Request, Response } from "express";
-import { helperGenerateRandomNumber, helperGetCurrentTimestamp } from "../helpers/common.helpers";
-import { cryptoHashMD5 } from "../helpers/crypto.helpers";
-import { userQueryFindByToken, userQueryUpdatePassword } from "../queries/user.queries";
-import { UserApiResponse, UserChangePasswordInput } from "../types/user.types";
 
-export const changePasswordController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const auth = req.cookies.auth;
-  const { password, newPassWord } = (req as any).validatedData as UserChangePasswordInput;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import bcrypt from 'bcrypt';
+import { UserApiResponse, UserChangePasswordSchema } from '../../types/user.types';
+import { findUserByToken, updateUserPassword, updateUserOTP } from '../../db/user.queries';
+import { generateOTP } from '../../utils/user.helpers';
 
+/\*\*
+
+- Change user password
+  \*/
+  export const changePasswordHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!password || !newPassWord) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const user = await userQueryFindByToken(auth);
-    if (!user || user.passwordHash !== cryptoHashMD5(password)) {
-      res.status(200).json({
-        message: "Incorrect password",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const newPasswordHash = cryptoHashMD5(newPassWord);
-    const randomOTP = helperGenerateRandomNumber(100000, 999999);
-
-    await userQueryUpdatePassword(newPasswordHash, newPassWord, auth);
-
-    res.status(200).json({
-      message: "Password modification successful",
-      status: true,
-      timeStamp: timeNow,
-    } as UserApiResponse);
-  } catch (error) {
-    console.error("changePasswordController error:", error);
-    res.status(500).json({
-      message: "Failed to change password",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  // Validate input
+  const parsed = UserChangePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+  res.status(400).json({
+  message: parsed.error.errors.map(e => e.message).join(', '),
+  status: false,
+  timeStamp: Date.now(),
+  });
+  return;
   }
-};
+
+        const { password, newPassWord } = parsed.data;
+        const auth = req.cookies.auth;
+        const timeNow = Date.now();
+
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Verify current password with bcrypt
+        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+        if (!isValidPassword) {
+          res.status(400).json({
+            message: 'Current password is incorrect',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Hash new password with bcrypt
+        const saltRounds = 10;
+        const newPasswordHash = await bcrypt.hash(newPassWord, saltRounds);
+
+        // Update password
+        await updateUserPassword(db, user.id, newPasswordHash);
+
+        // Generate new OTP for security
+        const newOTP = generateOTP();
+        await updateUserOTP(db, user.id, newOTP, timeNow + (10 * 60 * 1000));
+
+        res.status(200).json({
+          message: 'Password changed successfully',
+          status: true,
+          timeStamp: timeNow,
+        });
+
+  } catch (error) {
+  console.error('changePasswordHandler error:', error);
+  res.status(500).json({
+  message: 'Something went wrong!',
+  status: false,
+  timeStamp: Date.now(),
+  });
+  }
+  };

@@ -1,112 +1,120 @@
-import axios from "axios";
-import { Request, Response } from "express";
-import { helperGetCurrentTimestamp } from "../helpers/common.helpers";
-import {
-  paymentQueryFindRechargeByPhoneAndStatus,
-  paymentQueryUpdateRechargeStatus,
-} from "../queries/payment.queries";
-import { userQueryFindByToken, userQueryUpdateBalance } from "../queries/user.queries";
-import { UserApiResponse, UserConfirmRechargeInput } from "../types/user.types";
 
-export const confirmRechargeController = async (req: Request, res: Response): Promise<void> => {
-  const timeNow = helperGetCurrentTimestamp();
-  const auth = req.cookies.auth;
-  const { client_txn_id } = (req as any).validatedData as UserConfirmRechargeInput;
+import { Request, Response } from 'express';
+import { Pool } from 'mysql2/promise';
+import { UserApiResponse, UserConfirmRechargeSchema, DepositStatus } from '../../types/user.types';
+import { findUserByToken, findDepositByOrderId, updateDepositStatus } from '../../db/user.queries';
+import { verifyEKQRPayment } from '../../services/payment/upiGateway.service';
+import { getDMYDateOfTodayField, getCurrentTimeForTodayField } from '../../utils/user.helpers';
+import { processDepositCredit } from '../../services/payment/paymentHelpers.service';
 
+/\*\*
+
+- Confirm/verify recharge status
+  \*/
+  export const confirmRechargeHandler = (db: Pool) => async (req: Request, res: Response<UserApiResponse>): Promise<void> => {
   try {
-    if (!client_txn_id) {
-      res.status(200).json({
-        message: "client_txn_id is required",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    if (!auth) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const user = await userQueryFindByToken(auth);
-    if (!user) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const recharge = await paymentQueryFindRechargeByPhoneAndStatus(user.phone, 0);
-
-    if (recharge.length === 0) {
-      res.status(200).json({
-        message: "Failed",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    const rechargeData = recharge[0];
-    const date = new Date(rechargeData.today);
-    const formattedDate = `${String(date.getDate()).padStart(2, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${date.getFullYear()}`;
-
-    const apiData = {
-      key: process.env.PAYMENT_KEY,
-      client_txn_id: client_txn_id,
-      txn_date: formattedDate,
-    };
-
-    const apiResponse = await axios.post("https://api.ekqr.in/api/check_order_status", apiData);
-    const apiRecord = apiResponse.data.data;
-
-    if (apiRecord.status === "scanning") {
-      res.status(200).json({
-        message: "Waiting for confirmation",
-        status: false,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    if (apiRecord.status === "success") {
-      await paymentQueryUpdateRechargeStatus(rechargeData.id_order, 1);
-      await userQueryUpdateBalance(apiRecord.customer_mobile, apiRecord.amount);
-
-      res.status(200).json({
-        message: "Successful application confirmation",
-        status: true,
-        datas: recharge,
-      } as UserApiResponse);
-      return;
-    } else if (apiRecord.status === "failure" || apiRecord.status === "close") {
-      await paymentQueryUpdateRechargeStatus(rechargeData.id_order, 2);
-
-      res.status(200).json({
-        message: "Payment failure",
-        status: true,
-        timeStamp: timeNow,
-      } as UserApiResponse);
-      return;
-    }
-
-    res.status(200).json({
-      message: "Mismatch data",
-      status: true,
-      timeStamp: timeNow,
-    } as UserApiResponse);
-  } catch (error) {
-    console.error("confirmRechargeController error:", error);
-    res.status(500).json({
-      message: "Failed to confirm recharge",
-      status: false,
-      timeStamp: timeNow,
-    } as UserApiResponse);
+  const parsed = UserConfirmRechargeSchema.safeParse(req.body);
+  if (!parsed.success) {
+  res.status(400).json({
+  message: parsed.error.errors.map(e => e.message).join(', '),
+  status: false,
+  timeStamp: Date.now(),
+  });
+  return;
   }
-};
+
+        const { client_txn_id } = parsed.data;
+        const auth = req.cookies.auth;
+        const timeNow = Date.now();
+
+        const user = await findUserByToken(db, auth);
+        if (!user) {
+          res.status(401).json({
+            message: 'Unauthorized',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Get pending deposit
+        const deposit = await findDepositByOrderId(db, client_txn_id);
+        if (!deposit || deposit.userId !== user.id) {
+          res.status(404).json({
+            message: 'Deposit not found',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Verify with payment gateway
+        const txnDate = getDMYDateOfTodayField(getCurrentTimeForTodayField());
+        const verification = await verifyEKQRPayment(client_txn_id, txnDate);
+
+        if (!verification.status) {
+          res.status(400).json({
+            message: 'Unable to verify payment',
+            status: false,
+            timeStamp: timeNow,
+          });
+          return;
+        }
+
+        // Handle different statuses
+        switch (verification.data.status) {
+          case 'created':
+            res.status(200).json({
+              message: 'Payment request created, awaiting payment',
+              status: false,
+              timeStamp: timeNow,
+            });
+            return;
+
+          case 'scanning':
+            res.status(200).json({
+              message: 'Payment detected, waiting for confirmation',
+              status: false,
+              timeStamp: timeNow,
+            });
+            return;
+
+          case 'success':
+            if (deposit.status === DepositStatus.PENDING) {
+              await updateDepositStatus(db, client_txn_id, DepositStatus.COMPLETED);
+              await processDepositCredit(db, deposit);
+            }
+            res.status(200).json({
+              message: 'Payment successful! Balance updated.',
+              status: true,
+              timeStamp: timeNow,
+            });
+            return;
+
+          case 'failure':
+          case 'close':
+            await updateDepositStatus(db, client_txn_id, DepositStatus.FAILED);
+            res.status(200).json({
+              message: 'Payment failed or cancelled',
+              status: false,
+              timeStamp: timeNow,
+            });
+            return;
+
+          default:
+            res.status(400).json({
+              message: 'Unknown payment status',
+              status: false,
+              timeStamp: timeNow,
+            });
+        }
+
+  } catch (error) {
+  console.error('confirmRechargeHandler error:', error);
+  res.status(500).json({
+  message: 'Something went wrong!',
+  status: false,
+  timeStamp: Date.now(),
+  });
+  }
+  };
