@@ -3,16 +3,16 @@ import { createK3Bet } from "../../../db/k3.queries";
 import { K3BetRecord, MINIMUM_TURNOVER_FOR_COMMISSION, PAYOUT_MULTIPLIERS } from "../../../types";
 import {
   calculateBetAmount,
-  calculateTotal,
   hasPair,
-  isBig,
   isConsecutive,
   isEven,
+  isK3TotalBig,
+  isK3TotalSmall,
   isOdd,
-  isSmall,
   isThreeDifferent,
   isTriple,
   isTwoDifferent,
+  sumDigits,
 } from "../../../utils/";
 
 /**
@@ -81,12 +81,16 @@ export const calculateWinAmount = (
   result: string,
   betAmount: number,
 ): number => {
-  const total = calculateTotal(result);
+  const total = sumDigits(result);
 
   switch (betType) {
     case "total":
-      if (selection === "b" && isBig(total)) return betAmount - PAYOUT_MULTIPLIERS.total.big;
-      if (selection === "s" && isSmall(total)) return betAmount - PAYOUT_MULTIPLIERS.total.small;
+      if (selection === "b" && isK3TotalBig(total)) {
+        return betAmount - PAYOUT_MULTIPLIERS.total.big;
+      }
+      if (selection === "s" && isK3TotalSmall(total)) {
+        return betAmount - PAYOUT_MULTIPLIERS.total.small;
+      }
       if (selection === "c" && isEven(total)) return betAmount * PAYOUT_MULTIPLIERS.total.even;
       if (selection === "l" && isOdd(total)) return betAmount * PAYOUT_MULTIPLIERS.total.odd;
       if (selection === String(total)) return betAmount * PAYOUT_MULTIPLIERS.total.specific;

@@ -9,10 +9,10 @@ import { WingoBetRecord } from "../../../types/wingo.types";
 import {
   getNextPredefinedResult,
   getPayoutMultiplier,
-  isBig,
+  isBigWingo,
   isGreen,
   isRed,
-  isSmall,
+  isSmallWingo,
   isViolet,
   parsePredefinedResults,
 } from "../../../utils";
@@ -46,8 +46,8 @@ export const evaluateColorBet = (selection: string, result: number): boolean => 
  * Evaluate if a size bet wins
  */
 export const evaluateSizeBet = (selection: string, result: number): boolean => {
-  if (selection === "l" && isBig(result)) return true;
-  if (selection === "n" && isSmall(result)) return true;
+  if (selection === "l" && isBigWingo(result)) return true;
+  if (selection === "n" && isSmallWingo(result)) return true;
   return false;
 };
 

@@ -1,3 +1,8 @@
+const toIntOrNull = (value: number | string): number | null => {
+  const parsed = typeof value === "number" ? value : parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
 /**
  * Generate random 3-digit K3 result (each digit 1-6)
  */
@@ -10,72 +15,80 @@ export const generateK3Result = (): string => {
 };
 
 /**
- * Calculate total of 3 dice
+ * Parse result string into digit array
  */
-export const calculateTotal = (result: string): number => {
-  return result.split("").reduce((sum, digit) => sum + parseInt(digit), 0);
+export const parseDigits = (result: string): number[] => {
+  return result.split("").map((d) => parseInt(d, 10));
 };
 
 /**
- * Parse result to array of numbers
+ * Sum all digits in a result string
  */
-export const parseResult = (result: string): number[] => {
-  return result.split("").map((d) => parseInt(d));
+export const sumDigits = (result: string): number => {
+  return result.split("").reduce((sum, digit) => sum + parseInt(digit, 10), 0);
 };
 
 /**
- * Check if total is big (11-18)
+ * Check if K3 total is big (11-18)
  */
-export const isBig = (total: number): boolean => {
+export const isK3TotalBig = (total: number): boolean => {
   return total >= 11 && total <= 18;
 };
 
 /**
- * Check if total is small (3-10)
+ * Check if K3 total is small (3-10)
  */
-export const isTotalSmall = (total: number): boolean => {
+export const isK3TotalSmall = (total: number): boolean => {
   return total >= 3 && total <= 10;
 };
 
 /**
  * Check if digit is small (0-4)
  */
-export const isSmall = (digit: string): boolean => {
-  const num = parseInt(digit, 10);
+export const isDigitSmall = (digit: number | string): boolean => {
+  const num = toIntOrNull(digit);
+  if (num === null) return false;
   return num >= 0 && num <= 4;
 };
 
 /**
  * Check if digit is big (5-9)
  */
-export const isBig = (digit: string): boolean => {
-  const num = parseInt(digit, 10);
+export const isDigitBig = (digit: number | string): boolean => {
+  const num = toIntOrNull(digit);
+  if (num === null) return false;
   return num >= 5 && num <= 9;
 };
+
 /**
- * Check if total is small (0-22) (for 5D)
+ * Check if 5D total is small (0-22)
  */
-export const isTotalSmall = (total: number): boolean => {
+export const is5DTotalSmall = (total: number): boolean => {
   return total <= 22;
 };
 
 /**
- * Check if total is big (23-45) (for 5D)
+ * Check if 5D total is big (23-45)
  */
-export const isTotalBig = (total: number): boolean => {
+export const is5DTotalBig = (total: number): boolean => {
   return total > 22;
 };
+
 /**
  * Check if total is even
  */
-export const isEven = (total: number): boolean => {
+export const isEven = (value: number | string): boolean => {
+  const total = toIntOrNull(value);
+  if (total === null) return false;
   return total % 2 === 0;
 };
 
 /**
  * Check if total is odd
  */
-export const isOdd = (total: number): boolean => {
+export const isOdd = (value: number | string): boolean => {
+  const total = toIntOrNull(value);
+  if (total === null) return false;
   return total % 2 !== 0;
 };
 
@@ -84,7 +97,7 @@ export const isOdd = (total: number): boolean => {
  * Returns [hasPair, pairValue]
  */
 export const hasPair = (result: string): [boolean, number?] => {
-  const dice = parseResult(result);
+  const dice = parseDigits(result);
   if (dice[0] === dice[1]) return [true, dice[0]];
   if (dice[1] === dice[2]) return [true, dice[1]];
   if (dice[0] === dice[2]) return [true, dice[0]];
@@ -96,7 +109,7 @@ export const hasPair = (result: string): [boolean, number?] => {
  * Returns [isTriple, tripleValue]
  */
 export const isTriple = (result: string): [boolean, number?] => {
-  const dice = parseResult(result);
+  const dice = parseDigits(result);
   if (dice[0] === dice[1] && dice[1] === dice[2]) {
     return [true, dice[0]];
   }
@@ -107,7 +120,7 @@ export const isTriple = (result: string): [boolean, number?] => {
  * Check if all three dice are different
  */
 export const isThreeDifferent = (result: string): boolean => {
-  const dice = parseResult(result);
+  const dice = parseDigits(result);
   return dice[0] !== dice[1] && dice[1] !== dice[2] && dice[0] !== dice[2];
 };
 
@@ -115,7 +128,7 @@ export const isThreeDifferent = (result: string): boolean => {
  * Check if dice are consecutive (e.g., 123, 234, 456)
  */
 export const isConsecutive = (result: string): boolean => {
-  const dice = parseResult(result).sort((a, b) => a - b);
+  const dice = parseDigits(result).sort((a, b) => a - b);
   return dice[1] === dice[0] + 1 && dice[2] === dice[1] + 1;
 };
 
@@ -123,7 +136,7 @@ export const isConsecutive = (result: string): boolean => {
  * Check if two different (one pair)
  */
 export const isTwoDifferent = (result: string): boolean => {
-  const dice = parseResult(result);
+  const dice = parseDigits(result);
   return (
     (dice[0] === dice[1] && dice[1] !== dice[2]) ||
     (dice[0] !== dice[1] && dice[1] === dice[2]) ||
@@ -165,25 +178,6 @@ export const generate5DResult = (): string => {
     result += Math.floor(Math.random() * 10).toString();
   }
   return result;
-};
-
-/**
- * Calculate total sum of 5 digits (for 5D)
- */
-export const calculateTotal5D = (result: string): number => {
-  return result.split("").reduce((sum, digit) => sum + parseInt(digit, 10), 0);
-};
-
-/**
- * Generate product/transaction ID
- */
-export const generateProductId = (): string => {
-  const date = new Date();
-  const years = String(date.getFullYear());
-  const months = String(date.getMonth() + 1).padStart(2, "0");
-  const days = String(date.getDate()).padStart(2, "0");
-  const random = Math.floor(Math.random() * 1000000000000000);
-  return years + months + days + random;
 };
 
 /**

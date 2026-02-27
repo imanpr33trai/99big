@@ -7,7 +7,7 @@ createCheckInRecord,
 getTotalDeposits,
 updateUserBalance
 } from '../../db/user.queries';
-import { getTodayString, getCheckInReward, getRequiredDeposit } from '../../utils';
+import { getTodayString, getCheckInDayConfig } from '../../utils';
 
 /\*\*
 
@@ -22,7 +22,7 @@ import { getTodayString, getCheckInReward, getRequiredDeposit } from '../../util
 - Check if user can claim reward based on deposit requirement
   \*/
   export const canClaimReward = async (db: Pool, userId: number, day: number): Promise<boolean> => {
-  const requiredDeposit = getRequiredDeposit(day);
+  const { requiredDeposit } = getCheckInDayConfig(day);
   const totalDeposits = await getTotalDeposits(db, userId);
   return totalDeposits >= requiredDeposit;
   };
@@ -32,7 +32,7 @@ import { getTodayString, getCheckInReward, getRequiredDeposit } from '../../util
 - Claim check-in reward for specific day
   \*/
   export const claimCheckInReward = async (db: Pool, userId: number, day: number): Promise<number> => {
-  const reward = getCheckInReward(day);
+  const { reward } = getCheckInDayConfig(day);
 
 // Create check-in record
 await createCheckInRecord(db, userId, day, reward);

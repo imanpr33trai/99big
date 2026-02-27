@@ -106,7 +106,7 @@ import {
 } from "../../types/admin.types";
 import {
   generateOrderIdAdmin,
-  generateReferralCodeUser,
+  generateUserReferralCode,
   getCurrentTimestamp,
   hashPassword,
   verifyPassword,
@@ -224,7 +224,7 @@ export const createAdminAuthController = (db: Pool) => ({
 
       // Hash password with bcrypt
       const passwordHash = await hashPassword(password);
-      const referralCode = generateReferralCodeUser();
+      const referralCode = generateUserReferralCode();
       const now = getCurrentTimestamp();
 
       // Find inviter if invite code provided

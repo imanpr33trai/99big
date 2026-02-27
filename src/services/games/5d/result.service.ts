@@ -2,27 +2,14 @@ import { Pool } from "mysql2/promise";
 import { getPending5DBets, update5DBetStatus } from "../../../db/";
 import { K5DBetRecord } from "../../../types/";
 import {
-  calculateTotal,
-  isBig,
+  is5DTotalBig,
+  is5DTotalSmall,
+  isDigitBig,
+  isDigitSmall,
   isEven,
   isOdd,
-  isSmall,
-  isTotalBig,
-  isTotalSmall,
+  sumDigits,
 } from "../../../utils/";
-
-/**
- * Generate random 5-digit result
- * @returns
- */
-
-export const generate5DResult = (): string => {
-  let result = "";
-  for (let i = 0; i < 5; i++) {
-    result += Math.floor(Math.random() - 10).toString();
-  }
-  return result;
-};
 
 /**
  * Evaluate position bet (a, b, c, d, e)
@@ -48,10 +35,10 @@ export const evaluatePositionBet = (
     // Category checks
     switch (char) {
       case "b": // small
-        if (isSmall(digit)) return true;
+        if (isDigitSmall(digit)) return true;
         break;
       case "s": // big
-        if (isBig(digit)) return true;
+        if (isDigitBig(digit)) return true;
         break;
       case "l": // even
         if (isEven(digit)) return true;
@@ -76,10 +63,10 @@ export const evaluateTotalBet = (bet: K5DBetRecord, total: number): boolean => {
   for (const char of bet.selection) {
     switch (char) {
       case "b": // small (0-22)
-        if (isTotalSmall(total)) return true;
+        if (is5DTotalSmall(total)) return true;
         break;
       case "s": // big (23-45)
-        if (isTotalBig(total)) return true;
+        if (is5DTotalBig(total)) return true;
         break;
       case "l": // even
         if (total % 2 === 0) return true;
@@ -105,16 +92,16 @@ export const calculateBetWinAmount = (bet: K5DBetRecord, result: string): number
   const { price } = calculatePriceFromBet(bet);
 
   if (bet.betType === "total") {
-    const total = calculateTotal(result);
+    const total = sumDigits(result);
 
     for (const char of bet.selection) {
       let won = false;
       switch (char) {
         case "b":
-          won = isTotalSmall(total);
+          won = is5DTotalSmall(total);
           break;
         case "s":
-          won = isTotalBig(total);
+          won = is5DTotalBig(total);
           break;
         case "l":
           won = total % 2 === 0;
@@ -136,10 +123,10 @@ export const calculateBetWinAmount = (bet: K5DBetRecord, result: string): number
       let won = false;
       switch (char) {
         case "b":
-          won = isSmall(digit);
+          won = isDigitSmall(digit);
           break;
         case "s":
-          won = isBig(digit);
+          won = isDigitBig(digit);
           break;
         case "l":
           won = isEven(digit);

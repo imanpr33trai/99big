@@ -157,7 +157,7 @@ export const formatINR = (amount: number): string => {
 /**
  * Generate unique order ID based on date and random number
  */
-export const generateOrderIdPayment = (): string => {
+export const generateOrderId = (prefix?: string): string => {
   const date = new Date();
   const id_time =
     String(date.getUTCFullYear()) +
@@ -165,21 +165,8 @@ export const generateOrderIdPayment = (): string => {
     String(date.getUTCDate()).padStart(2, "0");
   const id_order =
     Math.floor(Math.random() * (99999999999999 - 10000000000000 + 1)) + 10000000000000;
-  return id_time + id_order;
-};
-
-/**
- * Generate unique order ID (from user.helpers.ts)
- */
-export const generateOrderIdUser = (): string => {
-  const date = new Date();
-  const id_time =
-    String(date.getUTCFullYear()) +
-    String(date.getUTCMonth() + 1).padStart(2, "0") +
-    String(date.getUTCDate()).padStart(2, "0");
-  const id_order =
-    Math.floor(Math.random() * (99999999999999 - 10000000000000 + 1)) + 10000000000000;
-  return id_time + id_order;
+  const orderId = id_time + id_order;
+  return prefix ? `${prefix}${orderId}` : orderId;
 };
 
 /**
@@ -303,7 +290,7 @@ export const getCurrentDate = (): string => {
 /**
  * Generate unique referral code (5 letters + 5 digits)
  */
-export const generateReferralCodeUser = (): string => {
+export const generateUserReferralCode = (): string => {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   let result = "";
   for (let i = 0; i < 5; i++) {
@@ -312,18 +299,6 @@ export const generateReferralCodeUser = (): string => {
   const randomNum = Math.floor(Math.random() * (99999 - 10000 + 1)) + 10000;
   result += String(randomNum);
   return result;
-};
-
-/**
- * Generate random referral code (from admin.helpers.ts)
- */
-export const generateReferralCodeAdmin = (): string => {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let code = "";
-  for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
 };
 
 /**
@@ -338,17 +313,16 @@ export const maskPhoneNumber = (phone: string): string => {
 /**
  * Get check-in reward amount for specific day
  */
-export const getCheckInReward = (day: number): number => {
-  const rewards = [300, 3000, 6000, 12000, 28000, 100000, 200000];
-  return rewards[day - 1] || 0;
-};
+const CHECK_IN_AMOUNTS = [300, 3000, 6000, 12000, 28000, 100000, 200000] as const;
 
 /**
- * Get required deposit amount for specific check-in day
+ * Get check-in reward + required deposit for a specific day
  */
-export const getRequiredDeposit = (day: number): number => {
-  const deposits = [300, 3000, 6000, 12000, 28000, 100000, 200000];
-  return deposits[day - 1] || 0;
+export const getCheckInDayConfig = (
+  day: number,
+): { reward: number; requiredDeposit: number } => {
+  const amount = CHECK_IN_AMOUNTS[day - 1] ?? 0;
+  return { reward: amount, requiredDeposit: amount };
 };
 
 /**
