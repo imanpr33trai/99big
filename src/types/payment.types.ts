@@ -107,40 +107,7 @@ export interface PaymentMethod {
   createdAt: number;
 }
 
-export interface DepositRecord {
-  id: number;
-  orderId: string;
-  transactionId: string | null;
-  userId: number;
-  amount: number;
-  paymentMethodId: number | null;
-  status: PaymentStatus;
-  utrNumber: string | null;
-  receiptUrl: string | null;
-  processedAt: number | null;
-  processedBy: number | null;
-  remarks: string | null;
-  ipAddress: string | null;
-  createdAt: number;
-  // Additional fields for internal use
-  phone?: string;
-  today?: string;
-  url?: string;
-  time?: string | number;
-}
-
-export interface User {
-  id: number;
-  phone: string;
-  userName: string;
-  balance: number;
-  referralCode: string;
-  invitedBy: number | null;
-  firstDepositBonus: boolean;
-  freeBonus: number;
-  createdAt: number;
-  updatedAt: number;
-}
+import { DepositRecord } from "./user.types";
 
 export interface EKQRResponse {
   status: boolean;
@@ -203,30 +170,14 @@ export interface WowPayConfig {
 export interface SalaryRecord {
   id?: number;
   userId: number;
-  amount: number;
+  amount: string; // DECIMAL
   type: string;
   description: string;
   periodStart: string;
   periodEnd: string;
   isPaid: boolean;
-  paidAt: number | null;
-  createdAt: number;
-}
-
-export interface TransactionLog {
-  id?: bigint;
-  userId: number;
-  relatedUserId?: number | null;
-  typeId: number;
-  amount: number;
-  balanceBefore: number;
-  balanceAfter: number;
-  referenceId?: number;
-  referenceType?: string;
-  description: string;
-  ipAddress: string | null;
-  userAgent: string | null;
-  createdAt: number;
+  paidAt: string | null; // BIGINT
+  createdAt: string;
 }
 
 // Type exports for Zod schemas

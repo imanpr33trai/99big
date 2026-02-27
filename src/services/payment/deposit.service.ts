@@ -6,7 +6,7 @@ import {
   findUserByPhone
 } from '../../db/payment.queries';
 import { DepositRecord, PaymentStatus, PaymentMethodType } from '../../types/payment.types';
-import { generateOrderId, getCurrentTimeForTodayField } from '../../utils/payment.helpers';
+import { generateOrderId, getCurrentTimeForTodayField } from '../../utils';
 import { processDepositCredit } from './paymentHelpers.service';
 
 /**

@@ -103,7 +103,7 @@ export interface WingoMyBetsResponse {
   totalWin?: number;
 }
 
-export interface User {
+export interface WingoUser {
   id: number;
   phone: string;
   userName: string;
@@ -120,7 +120,7 @@ export interface User {
   totalMoney: number;
 }
 
-export interface CommissionLevel {
+export interface WingoCommissionLevel {
   id: number;
   level: number;
   name: string;
@@ -130,34 +130,6 @@ export interface CommissionLevel {
   rateF4: number;
   minTurnover: number;
   createdAt: number;
-}
-
-export interface CommissionRecord {
-  id: number;
-  userId: number;
-  fromUserId: number;
-  level: number;
-  amount: number;
-  sourceType: string;
-  sourceId: number;
-  createdAt: number;
-}
-
-export interface TurnoverRecord {
-  id: number;
-  userId: number;
-  dailyTurnover: number;
-  totalTurnover: number;
-  recordDate: string;
-  updatedAt: number;
-}
-
-export interface AdminConfig {
-  id: number;
-  configKey: string;
-  configValue: string;
-  description: string;
-  updatedAt: number;
 }
 
 // ============================================================================

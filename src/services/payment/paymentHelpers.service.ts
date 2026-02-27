@@ -17,7 +17,7 @@ import {
   PaymentStatus,
   PaymentMethodType
 } from '../../types/payment.types';
-import { calculateDepositBonus, generateOrderId } from '../../utils/payment.helpers';
+import { calculateDepositBonus, generateOrderId } from '../../utils';
 
 /**
  * Generate unique order ID

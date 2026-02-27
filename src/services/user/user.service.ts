@@ -6,7 +6,7 @@ getTotalDeposits,
 getTotalWithdrawals,
 findUserById
 } from '../../db/user.queries';
-import { generateReferralCode, generateAuthToken, maskPhoneNumber } from '../../utils/user.helpers';
+import { generateReferralCode, generateAuthToken, maskPhoneNumber } from '../../utils';
 
 /\*\*
 

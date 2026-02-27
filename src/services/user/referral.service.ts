@@ -2,7 +2,7 @@
 import { Pool } from 'mysql2/promise';
 import { ReferralData, TeamMember, User } from '../../types/user.types';
 import { getDirectReferrals, getReferralsByLevel } from '../../db/user.queries';
-import { getStartOfDay, getEndOfDay, maskPhoneNumber } from '../../utils/user.helpers';
+import { getStartOfDay, getEndOfDay, maskPhoneNumber } from '../../utils';
 
 /\*\*
 

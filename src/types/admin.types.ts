@@ -14,11 +14,6 @@ export const AdminRegisterSchema = z.object({
   userLevel: z.enum(["0", "1", "2"]).default("0"), // 0=user, 1=admin, 2=ctv
 });
 
-export const PaginationSchema = z.object({
-  page: z.number().int().min(0).default(0),
-  limit: z.number().int().min(1).max(100).default(10),
-});
-
 export const UserInfoSchema = z.object({
   phone: z.string().min(10).max(20),
 });
@@ -108,7 +103,6 @@ export const ListCTVSchema = z.object({
 // TypeScript Types
 export type AdminLoginInput = z.infer<typeof AdminLoginSchema>;
 export type AdminRegisterInput = z.infer<typeof AdminRegisterSchema>;
-export type PaginationInput = z.infer<typeof PaginationSchema>;
 export type UserInfoInput = z.infer<typeof UserInfoSchema>;
 export type RechargeActionInput = z.infer<typeof RechargeActionSchema>;
 export type WithdrawActionInput = z.infer<typeof WithdrawActionSchema>;
@@ -124,10 +118,9 @@ export type CreateSalaryInput = z.infer<typeof CreateSalarySchema>;
 export type UpdateLevelInput = z.infer<typeof UpdateLevelSchema>;
 export type ListCTVInput = z.infer<typeof ListCTVSchema>;
 
-export interface AdminApiResponse<T = unknown> {
+export interface AdminApiResponse {
   message: string;
   status: boolean;
-  data?: T;
   timeStamp?: number;
   [key: string]: unknown;
 }
@@ -137,14 +130,6 @@ export interface AdminAuthPayload {
   phone: string;
   userLevel: number;
   authToken: string;
-}
-
-export interface UserFinancialData {
-  totalDeposit: number;
-  totalWithdraw: number;
-  totalBet: number;
-  totalWin: number;
-  balance: number;
 }
 
 export interface StatisticalData {
@@ -226,18 +211,6 @@ export interface AdminUser {
   createdAt: number;
 }
 
-export interface DepositRecord {
-  id: number;
-  orderId: string;
-  userId: number;
-  amount: number;
-  status: number;
-  utrNumber: string | null;
-  createdAt: number;
-  userPhone?: string;
-  userName?: string;
-}
-
 export interface WithdrawalRecord {
   id: number;
   orderId: string;
@@ -248,6 +221,18 @@ export interface WithdrawalRecord {
   status: number;
   rejectionReason: string | null;
   requestedAt: number;
+  userPhone?: string;
+  userName?: string;
+}
+
+export interface AdminDepositRecord {
+  id: number;
+  orderId: string;
+  userId: number;
+  amount: number;
+  status: number;
+  utrNumber: string | null;
+  createdAt: number;
   userPhone?: string;
   userName?: string;
 }

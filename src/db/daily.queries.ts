@@ -4,9 +4,9 @@ import {
   CTVMember,
   CTVUser,
   RechargeRecord,
-  RedEnvelope,
+  UserRedEnvelope,
   WithdrawRecord,
-} from "../types/daily.types";
+} from "../types/";
 
 export const getDirectSubordinates = async (db: Pool, referralCode: string): Promise<CTVUser[]> => {
   const [rows] = await db.execute<RowDataPacket[]>(
@@ -166,14 +166,14 @@ export const createRedEnvelope = async (
   );
 };
 
-export const getRedEnvelopesByCTV = async (db: Pool, ctvId: number): Promise<RedEnvelope[]> => {
+export const getRedEnvelopesByCTV = async (db: Pool, ctvId: number): Promise<UserRedEnvelope[]> => {
   const [rows] = await db.execute<RowDataPacket[]>(
     `SELECT id, ctvId, code, amount, remainingCount, totalCount, expiryDate, createdAt
      FROM redEnvelopes
      WHERE ctvId = ? ORDER BY createdAt DESC`,
     [ctvId],
   );
-  return rows as RedEnvelope[];
+  return rows as UserRedEnvelope[];
 };
 
 export const updateUserBalance = async (

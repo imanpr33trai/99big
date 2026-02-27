@@ -1,82 +1,7 @@
 import { z } from "zod";
 
 // ==========================================
-// ZOD SCHEMAS
-// ==========================================
-
-// Authentication
-export const UserVerifyCodeSchema = z.object({
-  // Empty body - just triggers OTP send
-});
-
-export const UserChangePasswordSchema = z.object({
-  password: z.string().min(6, "Current password required"),
-  newPassWord: z.string().min(6, "New password must be at least 6 characters"),
-});
-
-export const UserChangeInfoSchema = z.object({
-  name: z.string().min(3).max(50),
-  type: z.enum(["editname"]),
-});
-
-// Check-in
-export const UserCheckInSchema = z.object({
-  data: z.number().int().min(1).max(7).optional(),
-});
-
-// Banking
-export const UserBankSchema = z.object({
-  name_bank: z.string().min(3, "Bank name required"),
-  name_user: z.string().min(3, "Account holder name required"),
-  stk: z.string().min(5, "Account number required"),
-  email: z.email("Valid email required"),
-  tinh: z.string().min(1, "State/City required"),
-});
-
-export const UserInfoBankSchema = z.object({
-  // No body required
-});
-
-// Withdrawal
-export const UserWithdrawSchema = z.object({
-  money: z.number().int().min(299, "Minimum withdrawal is ₹299"),
-  password: z.string().min(6, "Password required"),
-});
-
-// Transfer
-export const UserTransferSchema = z.object({
-  amount: z.number().int().positive("Amount must be positive"),
-  phone: z.string().min(10, "Valid phone number required"),
-});
-
-// Red Envelope
-export const UserRedEnvelopeSchema = z.object({
-  code: z.string().min(1, "Red envelope code required"),
-});
-
-// Recharge
-export const UserRechargeSchema = z.object({
-  money: z.number().int().positive("Amount must be positive"),
-  type: z.string().optional(),
-});
-
-export const UserUpdateRechargeSchema = z.object({
-  money: z.number().int().positive(),
-  id_order: z.string().min(1, "Order ID required"),
-  inputData: z.string().min(1, "UTR/Transaction ID required"),
-});
-
-export const UserConfirmRechargeSchema = z.object({
-  client_txn_id: z.string().min(1, "Transaction ID required"),
-});
-
-// Search
-export const UserSearchSchema = z.object({
-  phone: z.string().min(10, "Valid phone number required"),
-});
-
-// ==========================================
-// ENUMS
+// USER ENUMS
 // ==========================================
 
 export enum UserStatus {
@@ -91,7 +16,7 @@ export enum UserLevel {
   CTV = 2,
 }
 
-export enum DepositStatus {
+export enum UserDepositStatus {
   PENDING = 0,
   PROCESSING = 1,
   COMPLETED = 2,
@@ -99,18 +24,79 @@ export enum DepositStatus {
   CANCELLED = 4,
 }
 
-export enum WithdrawalStatus {
+export enum UserWithdrawalStatus {
   PENDING = 0,
   PROCESSING = 1,
   COMPLETED = 2,
   REJECTED = 3,
 }
 
-export enum BankAccountType {
+export enum UserBankAccountType {
   BANK = "bank",
   UPI = "upi",
   CRYPTO = "crypto",
 }
+
+// ==========================================
+// ZOD SCHEMAS
+// ==========================================
+
+export const UserVerifyCodeSchema = z.object({});
+
+export const UserChangePasswordSchema = z.object({
+  password: z.string().min(6),
+  newPassWord: z.string().min(6),
+});
+
+export const UserChangeInfoSchema = z.object({
+  name: z.string().min(3).max(50),
+  type: z.enum(["editname"]),
+});
+
+export const UserCheckInSchema = z.object({
+  data: z.number().int().min(1).max(7).optional(),
+});
+
+export const UserBankSchema = z.object({
+  name_bank: z.string().min(3),
+  name_user: z.string().min(3),
+  stk: z.string().min(5),
+  email: z.email(),
+  tinh: z.string().min(1),
+});
+
+export const UserWithdrawSchema = z.object({
+  money: z.number().int().min(299),
+  password: z.string().min(6),
+});
+
+export const UserTransferSchema = z.object({
+  amount: z.number().int().positive(),
+  phone: z.string().min(10),
+});
+
+export const UserRedEnvelopeSchema = z.object({
+  code: z.string().min(1),
+});
+
+export const UserRechargeSchema = z.object({
+  money: z.number().int().positive(),
+  type: z.string().optional(),
+});
+
+export const UserUpdateRechargeSchema = z.object({
+  money: z.number().int().positive(),
+  id_order: z.string().min(1),
+  inputData: z.string().min(1),
+});
+
+export const UserConfirmRechargeSchema = z.object({
+  client_txn_id: z.string().min(1),
+});
+
+export const UserSearchSchema = z.object({
+  phone: z.string().min(10),
+});
 
 // ==========================================
 // INTERFACES
@@ -145,10 +131,14 @@ export interface User {
   otpAttempts: number;
   status: UserStatus;
   userLevel: UserLevel;
-  createdAt: number;
-  updatedAt: number;
+  createdAt: string; // SQL BIGINT but often handled as string in raw SQL to avoid overflow
+  updatedAt: string;
   freeBonus: number;
   firstDepositBonus: boolean;
+  totalDeposited: string;
+  totalWithdrawn: string;
+  totalBet: string;
+  totalWon: string;
 }
 
 export interface UserFinancialData {
@@ -156,9 +146,9 @@ export interface UserFinancialData {
   id_user: number;
   name_user: string;
   phone_user: string;
-  money_user: number;
-  totalRecharge: number;
-  totalWithdraw: number;
+  money_user: string; // DECIMAL
+  totalRecharge: string;
+  totalWithdraw: string;
   freeBonus: number;
 }
 
@@ -190,26 +180,10 @@ export interface TeamMember {
   total_turn_over: number;
 }
 
-export interface CheckInReward {
-  day: number;
-  requiredDeposit: number;
-  reward: number;
-}
-
-export const CHECK_IN_REWARDS: CheckInReward[] = [
-  { day: 1, requiredDeposit: 300, reward: 300 },
-  { day: 2, requiredDeposit: 3000, reward: 3000 },
-  { day: 3, requiredDeposit: 6000, reward: 6000 },
-  { day: 4, requiredDeposit: 12000, reward: 12000 },
-  { day: 5, requiredDeposit: 28000, reward: 28000 },
-  { day: 6, requiredDeposit: 100000, reward: 100000 },
-  { day: 7, requiredDeposit: 200000, reward: 200000 },
-];
-
-export interface BankAccount {
+export interface UserBankAccount {
   id: number;
   userId: number;
-  type: BankAccountType;
+  type: UserBankAccountType;
   bankName: string;
   accountName: string;
   accountNumber: string;
@@ -218,74 +192,39 @@ export interface BankAccount {
   isVerified: boolean;
 }
 
-export interface Deposit {
+export interface DepositRecord {
   id: number;
   orderId: string;
+  transactionId: string | null;
   userId: number;
-  amount: number;
-  status: DepositStatus;
+  amount: string; // DECIMAL(15,2)
+  paymentMethodId: number | null;
+  status: UserDepositStatus;
   utrNumber: string | null;
-  createdAt: number;
+  receiptUrl: string | null;
+  processedAt: string | null; // BIGINT as string
+  processedBy: number | null;
+  remarks: string | null;
+  ipAddress: string | null;
+  createdAt: string;
 }
 
-export interface Withdrawal {
-  id: number;
-  orderId: string;
+export interface TransactionLog {
+  id?: string; // BIGINT as string
   userId: number;
-  amount: number;
-  status: WithdrawalStatus;
-  rejectionReason: string | null;
-  requestedAt: number;
+  relatedUserId?: number | null;
+  typeId: number;
+  amount: string; // DECIMAL(15,2)
+  balanceBefore: string;
+  balanceAfter: string;
+  referenceId?: number;
+  referenceType?: string;
+  description: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
 }
 
-export interface RedEnvelope {
-  id: number;
-  envelopeId: string;
-  creatorId: number;
-  totalAmount: number;
-  totalCount: number;
-  claimedCount: number;
-  status: number;
-  expiredAt: number;
-}
-
-export interface RedEnvelopeClaim {
-  id: number;
-  envelopeId: number;
-  claimerId: number;
-  amount: number;
-  claimedAt: number;
-}
-
-export interface CheckInRecord {
-  id: number;
-  userId: number;
-  consecutiveDays: number;
-  rewardAmount: number;
-  checkInDate: string;
-  createdAt: number;
-}
-
-export interface Transfer {
-  id: number;
-  senderId: number;
-  receiverId: number;
-  amount: number;
-  status: number;
-  createdAt: number;
-}
-
-export interface CommissionLevel {
-  id: number;
-  level: number;
-  rateF1: number;
-  rateF2: number;
-  rateF3: number;
-  rateF4: number;
-  minTurnover: number;
-}
-
-// Type exports for Zod schemas
 export type UserChangePasswordInput = z.infer<typeof UserChangePasswordSchema>;
 export type UserChangeInfoInput = z.infer<typeof UserChangeInfoSchema>;
 export type UserCheckInInput = z.infer<typeof UserCheckInSchema>;

@@ -7,7 +7,7 @@ createCheckInRecord,
 getTotalDeposits,
 updateUserBalance
 } from '../../db/user.queries';
-import { getTodayString, getCheckInReward, getRequiredDeposit } from '../../utils/user.helpers';
+import { getTodayString, getCheckInReward, getRequiredDeposit } from '../../utils';
 
 /\*\*
 

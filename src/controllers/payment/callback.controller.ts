@@ -4,9 +4,12 @@ import { PaymentStatus } from '../../types/payment.types';
 import { findDepositByOrderId, updateDepositStatus } from '../../db/payment.queries';
 import { processDepositCredit } from '../../services/payment/paymentHelpers.service';
 
+
 /**
+ * 
  * Payment gateway callback handler
  * This is called by payment gateways to notify payment status
+ * 
  */
 export const callbackBankHandler = (db: Pool) => async (
   req: Request,
@@ -81,8 +84,11 @@ export const callbackBankHandler = (db: Pool) => async (
   }
 };
 
+
 /**
+ * 
  * USDT recharge confirmation handler
+ * 
  */
 export const confirmUSDTRechargeHandler = (db: Pool) => async (
   req: Request,

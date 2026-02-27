@@ -1,11 +1,11 @@
 import { Pool, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import {
-  CommissionLevel,
   TurnoverRecord,
   User,
+  UserCommissionLevel,
   WingoBetRecord,
   WingoGameSession,
-} from "../types/wingo.types";
+} from "../types";
 import { getTodayString } from "../utils/";
 
 export const getBetsByUsersDaily = async (
@@ -501,18 +501,18 @@ export const getReferrerChain = async (
 // COMMISSION QUERIES
 // ============================================================================
 
-export const getCommissionRates = async (db: Pool): Promise<CommissionLevel[]> => {
+export const getCommissionRates = async (db: Pool): Promise<UserCommissionLevel[]> => {
   const [rows] = await db.execute<RowDataPacket[]>(
     "SELECT * FROM commissionLevels ORDER BY level ASC",
   );
 
-  return rows as CommissionLevel[];
+  return rows as UserCommissionLevel[];
 };
 
 export const getCommissionRateByLevel = async (
   db: Pool,
   level: number,
-): Promise<CommissionLevel | null> => {
+): Promise<UserCommissionLevel | null> => {
   const [rows] = await db.execute<RowDataPacket[]>(
     "SELECT * FROM commissionLevels WHERE level = ? LIMIT 1",
     [level],
@@ -520,7 +520,7 @@ export const getCommissionRateByLevel = async (
 
   if (rows.length === 0) return null;
 
-  return rows[0] as CommissionLevel;
+  return rows[0] as UserCommissionLevel;
 };
 
 export const createCommissionRecord = async (

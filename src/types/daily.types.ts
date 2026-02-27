@@ -1,17 +1,14 @@
 import { z } from 'zod';
+import { ApiResponse } from './common.types';
 
 // Zod Schemas
-export const DateFilterSchema = z.object({
-  timeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
-
 export const BuffMoneySchema = z.object({
   username: z.string().min(10).max(10), // Phone number
   select: z.enum(['1', '2']), // 1 = add, 2 = subtract
   money: z.number().positive(),
 });
 
-export const PaginationSchema = z.object({
+export const DailyPaginationSchema = z.object({
   pageno: z.number().int().min(0).default(0),
   limit: z.number().int().min(1).max(100).default(10),
 });
@@ -21,20 +18,19 @@ export const SettingsSchema = z.object({
   value: z.string().optional(),
 });
 
-export const CreateBonusSchema = z.object({
+export const CreateDailyBonusSchema = z.object({
   amount: z.number().positive(),
   count: z.number().int().positive(),
   expiryHours: z.number().int().positive().default(24),
 });
 
 // TypeScript Types
-export type DateFilterInput = z.infer<typeof DateFilterSchema>;
 export type BuffMoneyInput = z.infer<typeof BuffMoneySchema>;
-export type PaginationInput = z.infer<typeof PaginationSchema>;
+export type DailyPaginationInput = z.infer<typeof DailyPaginationSchema>;
 export type SettingsInput = z.infer<typeof SettingsSchema>;
-export type CreateBonusInput = z.infer<typeof CreateBonusSchema>;
+export type CreateDailyBonusInput = z.infer<typeof CreateDailyBonusSchema>;
 
-export interface CTVUser {
+export interface DailyCTVUser {
   id: number;
   phone: string;
   referralCode: string;
@@ -42,25 +38,16 @@ export interface CTVUser {
   status: number;
   balance: number;
   totalMoney: number;
-  createdAt: Date;
+  createdAt: Date | number;
 }
 
-export interface CTVMember {
+export interface DailyCTVMember {
   id: number;
   phone: string;
   balance: number;
   totalMoney: number;
   status: number;
-  createdAt: Date;
-}
-
-export interface FinancialDetail {
-  id: number;
-  ctvId: number;
-  userId: number;
-  amount: number;
-  type: '1' | '2'; // 1 = add, 2 = subtract
-  createdAt: Date;
+  createdAt: Date | number;
 }
 
 export interface RechargeRecord {
@@ -68,7 +55,7 @@ export interface RechargeRecord {
   userId: number;
   amount: number;
   status: number;
-  createdAt: Date;
+  createdAt: Date | number;
   userPhone?: string;
 }
 
@@ -77,11 +64,11 @@ export interface WithdrawRecord {
   userId: number;
   amount: number;
   status: number;
-  createdAt: Date;
+  createdAt: Date | number;
   userPhone?: string;
 }
 
-export interface BetRecord {
+export interface DailyBetRecord {
   id: number;
   userId: number;
   game: string;
@@ -89,30 +76,27 @@ export interface BetRecord {
   result: number;
   winAmount: number;
   status: number;
-  createdAt: Date;
+  createdAt: Date | number;
 }
 
-export interface RedEnvelope {
+export interface DailyRedEnvelope {
   id: number;
   ctvId: number;
   code: string;
   amount: number;
   remainingCount: number;
   totalCount: number;
-  expiryDate: Date;
-  createdAt: Date;
+  expiryDate: Date | number;
+  createdAt: Date | number;
 }
 
-export interface DailyApiResponse {
-  message: string;
-  status: boolean;
-  timeStamp: number;
-  datas?: CTVUser | CTVMember[];
+export interface DailyApiResponse extends ApiResponse {
+  datas?: any;
   f1?: number;
   f2?: number;
   f3?: number;
   f4?: number;
-  list_mems?: CTVMember[];
+  list_mems?: DailyCTVMember[];
   total_recharge?: number;
   total_withdraw?: number;
   total_recharge_today?: number;

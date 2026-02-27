@@ -50,7 +50,7 @@ export interface K3ApiResponse<T = unknown> {
 
 export interface K3GameSession {
   id: number;
-  period: string;
+  period: number;
   gameTypeId: number;
   result: string | null;
   status: number;

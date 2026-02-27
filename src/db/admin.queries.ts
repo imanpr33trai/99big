@@ -1,6 +1,6 @@
 import { Pool, ResultSetHeader } from "mysql2/promise";
-import { AdminUser, CommissionData, DepositRecord, WithdrawalRecord } from "../types/admin.types";
-import { getTodayStartTimestamp } from "../utils/admin.helpers";
+import { AdminUser, CommissionData } from "../types/admin.types";
+import { getTodayStartTimestamp } from "../utils";
 
 // User Queries
 /**
@@ -75,7 +75,7 @@ export const getDirectSubordinates = async (
   db: Pool,
   referralCode: string,
 ): Promise<AdminUser[]> => {
-  const todayStart = getTodayStartTimestamp();
+  // const todayStart = getTodayStartTimestamp();
 
   const [rows] = await db.execute(
     `SELECT id, phone, userName, balance, referralCode, invitedBy, isVerified,

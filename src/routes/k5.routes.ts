@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { Pool } from "mysql2/promise";
-import { add5dHandler } from "../controllers/5d/add5d.controller";
-import { bet5dHandler } from "../controllers/5d/bet5d.controller";
-import { getMyEmerdList5dHandler } from "../controllers/5d/getMyEmerdList.controller";
-import { listOrderOld5dHandler } from "../controllers/5d/listOrderOld.controller";
+import { add5dHandler } from "../controllers/games/5d/add.controller";
+import { bet5dHandler } from "../controllers/games/5d/bet.controller";
+import { getMyEmerdList5dHandler } from "../controllers/games/5d/history.controller";
+import { listOrderOld5dHandler } from "../controllers/games/5d/orderOld.controller";
 import { create5DController } from "../controllers/admin/adminMember.controller";
 import { k5dAuthMiddleware } from "../middleware/5dAuth.middleware";
 
@@ -43,3 +43,5 @@ export const create5dRoutes = (db: Pool): Router => {
 
   return router;
 };
+
+export default create5dRoutes;

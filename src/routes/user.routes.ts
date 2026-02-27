@@ -7,31 +7,31 @@ import {
 } from "../middleware/userAuth.middleware";
 
 // Import all controllers
-import { verifyCodeHandler } from "../controllers/user/verifyCode.controller";
-import { userInfoHandler } from "../controllers/user/userInfo.controller";
-import { changeUserHandler } from "../controllers/user/changeUser.controller";
-import { changePasswordHandler } from "../controllers/user/changePassword.controller";
-import { checkInHandler } from "../controllers/user/checkIn.controller";
-import { aviatorHandler } from "../controllers/user/aviator.controller";
-import { promotionHandler } from "../controllers/user/promotion.controller";
-import { myTeamHandler } from "../controllers/user/myTeam.controller";
-import { listMyTeamHandler } from "../controllers/user/listMyTeam.controller";
-import { rechargeHandler } from "../controllers/user/recharge.controller";
-import { cancelRechargeHandler } from "../controllers/user/cancelRecharge.controller";
-import { recharge2Handler } from "../controllers/user/recharge2.controller";
-import { listRechargeHandler } from "../controllers/user/listRecharge.controller";
-import { confirmRechargeHandler } from "../controllers/user/confirmRecharge.controller";
-import { updateRechargeHandler } from "../controllers/user/updateRecharge.controller";
-import { addBankHandler } from "../controllers/user/addBank.controller";
-import { infoUserBankHandler } from "../controllers/user/infoUserBank.controller";
-import { withdrawalHandler } from "../controllers/user/withdrawal.controller";
-import { listWithdrawHandler } from "../controllers/user/listWithdraw.controller";
-import { transferHandler } from "../controllers/user/transfer.controller";
-import { transferHistoryHandler } from "../controllers/user/transferHistory.controller";
-import { useRedEnvelopeHandler } from "../controllers/user/useRedEnvelope.controller";
-import { searchHandler } from "../controllers/user/search.controller";
-import { callbackBankHandler } from "../controllers/user/callbackBank.controller";
-import { confirmUSDTRechargeHandler } from "../controllers/user/confirmUSDTRecharge.controller";
+import { verifyCodeHandler } from "../controllers/user/tools/verifyCode.controller";
+import { userInfoHandler } from "../controllers/user/profile/info.controller";
+import { changeUserHandler } from "../controllers/user/profile/update.controller";
+import { changePasswordHandler } from "../controllers/user/profile/password.controller";
+import { checkInHandler } from "../controllers/user/tools/checkIn.controller";
+import { aviatorHandler } from "../controllers/user/tools/aviator.controller";
+import { promotionHandler } from "../controllers/user/team/promotion.controller";
+import { myTeamHandler } from "../controllers/user/team/team.controller";
+import { listMyTeamHandler } from "../controllers/user/team/teamList.controller";
+import { rechargeHandler } from "../controllers/user/financial/recharge.controller";
+import { cancelRechargeHandler } from "../controllers/user/financial/rechargeCancel.controller";
+import { recharge2Handler } from "../controllers/user/financial/recharge2.controller";
+import { listRechargeHandler } from "../controllers/user/financial/rechargeList.controller";
+import { confirmRechargeHandler } from "../controllers/user/financial/rechargeConfirm.controller";
+import { updateRechargeHandler } from "../controllers/user/financial/rechargeUpdate.controller";
+import { addBankHandler } from "../controllers/user/financial/bankAdd.controller";
+import { infoUserBankHandler } from "../controllers/user/financial/bankInfo.controller";
+import { withdrawalHandler } from "../controllers/user/financial/withdrawal.controller";
+import { listWithdrawHandler } from "../controllers/user/financial/withdrawList.controller";
+import { transferHandler } from "../controllers/user/financial/transfer.controller";
+import { transferHistoryHandler } from "../controllers/user/financial/transferHistory.controller";
+import { useRedEnvelopeHandler } from "../controllers/user/tools/redEnvelope.controller";
+import { searchHandler } from "../controllers/user/tools/search.controller";
+import { callbackBankHandler } from "../controllers/user/financial/bankCallback.controller";
+import { confirmUSDTRechargeHandler } from "../controllers/user/financial/rechargeConfirmUSDT.controller";
 
 export const createUserRoutes = (db: Pool): Router => {
   const router = Router();

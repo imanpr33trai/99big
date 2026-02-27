@@ -15,8 +15,8 @@ import { UserStatus } from "../types/user.types";
  */
 export const findUserByToken = async (db: Pool, token: string): Promise<User | null> => {
   const [rows] = await db.execute<RowDataPacket[]>(
-    'SELECT * FROM users WHERE authToken = ? AND status = ? LIMIT 1',
-    [token, UserStatus.ACTIVE]
+    "SELECT * FROM users WHERE authToken = ? AND status = ? LIMIT 1",
+    [token, UserStatus.ACTIVE],
   );
   return rows[0] as User | null;
 };
@@ -27,11 +27,16 @@ export const findUserByToken = async (db: Pool, token: string): Promise<User | n
  * @param userId
  * @param token
  */
-export const updateUserAuthToken = async (db: Pool, userId: number, token: string): Promise<void> => {
-  await db.execute(
-    'UPDATE users SET authToken = ?, updatedAt = ? WHERE id = ?',
-    [token, Date.now(), userId]
-  );
+export const updateUserAuthToken = async (
+  db: Pool,
+  userId: number,
+  token: string,
+): Promise<void> => {
+  await db.execute("UPDATE users SET authToken = ?, updatedAt = ? WHERE id = ?", [
+    token,
+    Date.now(),
+    userId,
+  ]);
 };
 
 /**
@@ -41,10 +46,11 @@ export const updateUserAuthToken = async (db: Pool, userId: number, token: strin
  * @param hash
  */
 export const updateUserPassword = async (db: Pool, userId: number, hash: string): Promise<void> => {
-  await db.execute(
-    'UPDATE users SET passwordHash = ?, updatedAt = ? WHERE id = ?',
-    [hash, Date.now(), userId]
-  );
+  await db.execute("UPDATE users SET passwordHash = ?, updatedAt = ? WHERE id = ?", [
+    hash,
+    Date.now(),
+    userId,
+  ]);
 };
 
 // ==========================================
@@ -58,10 +64,15 @@ export const updateUserPassword = async (db: Pool, userId: number, hash: string)
  * @param otp
  * @param expiresAt
  */
-export const updateUserOTP = async (db: Pool, userId: number, otp: string, expiresAt: number): Promise<void> => {
+export const updateUserOTP = async (
+  db: Pool,
+  userId: number,
+  otp: string,
+  expiresAt: number,
+): Promise<void> => {
   await db.execute(
-    'UPDATE users SET otpCode = ?, otpExpiresAt = ?, otpAttempts = 0, updatedAt = ? WHERE id = ?',
-    [otp, expiresAt, Date.now(), userId]
+    "UPDATE users SET otpCode = ?, otpExpiresAt = ?, otpAttempts = 0, updatedAt = ? WHERE id = ?",
+    [otp, expiresAt, Date.now(), userId],
   );
 };
 
@@ -71,10 +82,10 @@ export const updateUserOTP = async (db: Pool, userId: number, otp: string, expir
  * @param userId
  */
 export const incrementOTPAttempts = async (db: Pool, userId: number): Promise<void> => {
-  await db.execute(
-    'UPDATE users SET otpAttempts = otpAttempts + 1, updatedAt = ? WHERE id = ?',
-    [Date.now(), userId]
-  );
+  await db.execute("UPDATE users SET otpAttempts = otpAttempts + 1, updatedAt = ? WHERE id = ?", [
+    Date.now(),
+    userId,
+  ]);
 };
 
 /**
@@ -86,8 +97,8 @@ export const incrementOTPAttempts = async (db: Pool, userId: number): Promise<vo
  */
 export const verifyUserOTP = async (db: Pool, userId: number, otp: string): Promise<boolean> => {
   const [rows] = await db.execute<RowDataPacket[]>(
-    'SELECT * FROM users WHERE id = ? AND otpCode = ? AND otpExpiresAt > ? AND otpAttempts < 3 LIMIT 1',
-    [userId, otp, Date.now()]
+    "SELECT * FROM users WHERE id = ? AND otpCode = ? AND otpExpiresAt > ? AND otpAttempts < 3 LIMIT 1",
+    [userId, otp, Date.now()],
   );
   return rows.length > 0;
 };
@@ -100,8 +111,8 @@ export const verifyUserOTP = async (db: Pool, userId: number, otp: string): Prom
  */
 export const isOTPRateLimited = async (db: Pool, userId: number): Promise<boolean> => {
   const [rows] = await db.execute<RowDataPacket[]>(
-    'SELECT otpExpiresAt FROM users WHERE id = ? AND otpExpiresAt > ? LIMIT 1',
-    [userId, Date.now()]
+    "SELECT otpExpiresAt FROM users WHERE id = ? AND otpExpiresAt > ? LIMIT 1",
+    [userId, Date.now()],
   );
   return rows.length > 0;
 };
@@ -113,8 +124,8 @@ export const isOTPRateLimited = async (db: Pool, userId: number): Promise<boolea
  */
 export const clearUserOTP = async (db: Pool, userId: number): Promise<void> => {
   await db.execute(
-    'UPDATE users SET otpCode = NULL, otpExpiresAt = NULL, otpAttempts = 0 WHERE id = ?',
-    [userId]
+    "UPDATE users SET otpCode = NULL, otpExpiresAt = NULL, otpAttempts = 0 WHERE id = ?",
+    [userId],
   );
 };
 
