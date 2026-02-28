@@ -22,8 +22,6 @@ A multi-game lottery platform built with Node.js, Express, MySQL, and Socket.IO.
 
 ## 📦 Installation
 
-### Option 1: Without Docker
-
 ```bash
 # Install dependencies
 pnpm install
