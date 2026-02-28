@@ -1,9 +1,9 @@
-import connection from "../config/connectDB.js";
 import axios from "axios";
-import moment from "moment";
 import crypto from "crypto";
-import querystring from "querystring";
+import moment from "moment";
 import QRCode from "qrcode";
+import querystring from "querystring";
+import { safeExecute } from "../lib/utils.js";
 
 let timeNow = Date.now();
 
@@ -29,9 +29,7 @@ const generateUPIQRCode = async (upiId, amount) => {
 const initiateManualUPIPayment = async (req, res) => {
   const query = req.query;
 
-  const [bank_recharge_momo] = await connection.query(
-    "SELECT * FROM bank_recharge WHERE type = 'momo'",
-  );
+  const [bank_recharge_momo] = await safeExecute("SELECT * FROM bank_recharge WHERE type = 'momo'");
 
   let bank_recharge_momo_data;
   if (bank_recharge_momo.length) {
@@ -58,9 +56,7 @@ const initiateManualUPIPayment = async (req, res) => {
 const initiateManualUSDTPayment = async (req, res) => {
   const query = req.query;
 
-  const [bank_recharge_momo] = await connection.query(
-    "SELECT * FROM bank_recharge WHERE type = 'momo'",
-  );
+  const [bank_recharge_momo] = await safeExecute("SELECT * FROM bank_recharge WHERE type = 'momo'");
 
   let bank_recharge_momo_data;
   if (bank_recharge_momo.length) {
@@ -717,7 +713,7 @@ const verifyWowPayPayment = async (req, res) => {
 
 // helpers ---------------
 const getUserDataByAuthToken = async (authToken) => {
-  let [users] = await connection.query(
+  let [users] = await safeExecute(
     "SELECT `phone`, `code`,`name_user`,`invite` FROM users WHERE `token` = ? ",
     [authToken],
   );
@@ -749,7 +745,7 @@ const addUserAccountBalance = async ({ money, phone }) => {
       hour12: true,
     };
     const formattedTime = timeIST.toLocaleString("en-US", options);
-    // const [rows] = await connection.query('SELECT COUNT(*) as count FROM recharge WHERE phone = ?', [phone]);
+    // const [rows] = await safeExecute('SELECT COUNT(*) as count FROM recharge WHERE phone = ?', [phone]);
     // const existsInRecharge = rows[0].count > 0;
 
     const tenPercent = 0.1 * money;
@@ -763,38 +759,38 @@ const addUserAccountBalance = async ({ money, phone }) => {
       salary = 150;
     }
 
-    const [data_set] = await connection.query("SELECT * FROM users WHERE phone = ?", [phone]);
+    const [data_set] = await safeExecute("SELECT * FROM users WHERE phone = ?", [phone]);
     const existsInRecharge = data_set[0].first_deposit;
     const free_bonus = data_set[0].free_bonus;
 
     const invite = data_set[0].invite;
-    const [agent] = await connection.query("SELECT * FROM users WHERE code = ?", [invite]);
+    const [agent] = await safeExecute("SELECT * FROM users WHERE code = ?", [invite]);
 
     const incrementPercentage = existsInRecharge == 1 ? 0.05 : 0.15;
-    await connection.query("UPDATE users SET first_deposit = ? WHERE phone = ?", [1, phone]);
+    await safeExecute("UPDATE users SET first_deposit = ? WHERE phone = ?", [1, phone]);
 
     const adjustedMoney = money + money * incrementPercentage;
 
     if (free_bonus >= tenPercent) {
       money += tenPercent;
-      await connection.query("UPDATE users SET free_bonus = free_bonus - ? WHERE phone = ?", [
+      await safeExecute("UPDATE users SET free_bonus = free_bonus - ? WHERE phone = ?", [
         tenPercent,
         phone,
       ]);
     } else {
       money += free_bonus;
-      await connection.query("UPDATE users SET free_bonus = ? WHERE phone = ?", [0, phone]);
+      await safeExecute("UPDATE users SET free_bonus = ? WHERE phone = ?", [0, phone]);
     }
 
     const type = "Referral Bonus";
     const insertSalaryQuery = "INSERT INTO salary (phone, amount, type, time) VALUES (?, ?, ?, ?)";
-    await connection.execute(insertSalaryQuery, [agent[0].phone, salary, type, formattedTime]);
+    await safeExecute(insertSalaryQuery, [agent[0].phone, salary, type, formattedTime]);
 
-    await connection.query(
+    await safeExecute(
       "UPDATE users SET money = money + ?, total_money = total_money + ? WHERE phone = ?",
       [salary, salary, agent[0].phone],
     );
-    await connection.query(
+    await safeExecute(
       "UPDATE users SET money = money + ?, total_money = total_money + ? WHERE phone = ?",
       [adjustedMoney, adjustedMoney, phone],
     );
@@ -826,12 +822,12 @@ const rechargeTable = {
     let recharge;
 
     if (type) {
-      [recharge] = await connection.query(
+      [recharge] = await safeExecute(
         "SELECT * FROM recharge WHERE phone = ? AND status = ? AND type = ?",
         [phone, status, type],
       );
     } else {
-      [recharge] = await connection.query("SELECT * FROM recharge WHERE phone = ? AND status = ?", [
+      [recharge] = await safeExecute("SELECT * FROM recharge WHERE phone = ? AND status = ?", [
         phone,
         status,
       ]);
@@ -852,9 +848,7 @@ const rechargeTable = {
     }));
   },
   getRechargeByOrderId: async ({ orderId }) => {
-    const [recharge] = await connection.query("SELECT * FROM recharge WHERE id_order = ?", [
-      orderId,
-    ]);
+    const [recharge] = await safeExecute("SELECT * FROM recharge WHERE id_order = ?", [orderId]);
 
     if (recharge.length === 0) {
       return null;
@@ -879,7 +873,7 @@ const rechargeTable = {
       throw Error("Invalid Recharge 'id' expected a number!");
     }
 
-    await connection.query("UPDATE recharge SET status = 2 WHERE id = ?", [id]);
+    await safeExecute("UPDATE recharge SET status = 2 WHERE id = ?", [id]);
   },
   setStatusToSuccessByIdAndOrderId: async ({ id, orderId }) => {
     if (typeof id !== "number") {
@@ -888,10 +882,10 @@ const rechargeTable = {
 
     console.log(id, orderId);
 
-    const [re] = await connection.query(
-      "UPDATE recharge SET status = 1 WHERE id = ? AND id_order = ?",
-      [id, orderId],
-    );
+    const [re] = await safeExecute("UPDATE recharge SET status = 1 WHERE id = ? AND id_order = ?", [
+      id,
+      orderId,
+    ]);
     console.log(re);
   },
   getCurrentTimeForTodayField: () => {
@@ -905,7 +899,7 @@ const rechargeTable = {
       newRecharge.url = "0";
     }
 
-    await connection.query(
+    await safeExecute(
       `INSERT INTO recharge SET id_order = ?, transaction_id = ?, phone = ?, money = ?, type = ?, status = ?, today = ?, url = ?, time = ?, utr = ?`,
       [
         newRecharge.orderId,
@@ -921,7 +915,7 @@ const rechargeTable = {
       ],
     );
 
-    const [recharge] = await connection.query("SELECT * FROM recharge WHERE id_order = ?", [
+    const [recharge] = await safeExecute("SELECT * FROM recharge WHERE id_order = ?", [
       newRecharge.orderId,
     ]);
 

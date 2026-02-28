@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import md5 from "md5";
 import request from "request";
-import connection from "../config/connectDB.js";
+import { safeExecute } from "../lib/utils.js";
 
 dotenv.config();
 
@@ -68,7 +68,7 @@ const login = async (req, res) => {
   }
 
   try {
-    const [rows] = await connection.query("SELECT * FROM users WHERE phone = ? AND password = ? ", [
+    const [rows] = await safeExecute("SELECT * FROM users WHERE phone = ? AND password = ? ", [
       username,
       md5(pwd),
     ]);
@@ -83,7 +83,7 @@ const login = async (req, res) => {
           process.env.JWT_ACCESS_TOKEN,
           { expiresIn: "1d" },
         );
-        await connection.execute("UPDATE `users` SET `token` = ? WHERE `phone` = ? ", [
+        await safeExecute("UPDATE `users` SET `token` = ? WHERE `phone` = ? ", [
           md5(accessToken),
           username,
         ]);
@@ -135,9 +135,9 @@ const register = async (req, res) => {
   }
 
   try {
-    const [check_u] = await connection.query("SELECT * FROM users WHERE phone = ?", [username]);
-    const [check_i] = await connection.query("SELECT * FROM users WHERE code = ? ", [invitecode]);
-    const [check_ip] = await connection.query("SELECT * FROM users WHERE ip_address = ? ", [ip]);
+    const [check_u] = await safeExecute("SELECT * FROM users WHERE phone = ?", [username]);
+    const [check_i] = await safeExecute("SELECT * FROM users WHERE code = ? ", [invitecode]);
+    const [check_ip] = await safeExecute("SELECT * FROM users WHERE ip_address = ? ", [ip]);
 
     if (check_u.length == 1 && check_u[0].veri == 1) {
       return res.status(200).json({
@@ -153,9 +153,10 @@ const register = async (req, res) => {
         } else {
           ctv = check_i[0].ctv;
         }
+
         const sql =
           "INSERT INTO users SET id_user = ?,phone = ?,name_user = ?,password = ?, plain_password = ?, money = ?,code = ?,invite = ?,ctv = ?,veri = ?,otp = ?,ip_address = ?,status = ?,time = ?, free_bonus = ?, first_deposit = ?";
-        await connection.execute(sql, [
+        await safeExecute(sql, [
           id_user,
           username,
           name_user,
@@ -173,9 +174,27 @@ const register = async (req, res) => {
           500,
           0,
         ]);
-        await connection.execute("INSERT INTO point_list SET phone = ?", [username]);
+        // await safeExecute(sql, [
+        //   id_user,
+        //   username,
+        //   name_user,
+        //   md5(pwd),
+        //   pwd,
+        //   0,
+        //   code,
+        //   invitecode,
+        //   ctv,
+        //   1,
+        //   otp2,
+        //   ip,
+        //   1,
+        //   time,
+        //   500,
+        //   0,
+        // ]);
+        await safeExecute("INSERT INTO point_list SET phone = ?", [username]);
 
-        const [check_code] = await connection.query("SELECT * FROM users WHERE invite = ? ", [
+        const [check_code] = await safeExecute("SELECT * FROM users WHERE invite = ? ", [
           invitecode,
         ]);
 
@@ -184,7 +203,7 @@ const register = async (req, res) => {
 
           for (let i = 0; i < levels.length; i++) {
             if (check_code.length >= levels[i]) {
-              await connection.execute("UPDATE users SET user_level = ? WHERE code = ?", [
+              await safeExecute("UPDATE users SET user_level = ? WHERE code = ?", [
                 i + 1,
                 invitecode,
               ]);
@@ -230,17 +249,18 @@ const verifyCode = async (req, res) => {
     });
   }
 
-  const [rows] = await connection.query("SELECT * FROM users WHERE `phone` = ?", [phone]);
+  const [rows] = await safeExecute("SELECT * FROM users WHERE `phone` = ?", [phone]);
   if (rows.length == 0) {
     await request(
       `http://47.243.168.18:9090/sms/batch/v2?appkey=NFJKdK&appsecret=brwkTw&phone=84${phone}&msg=Your verification code is ${otp}&extend=${now}`,
       async (error, response, body) => {
         const data = JSON.parse(body);
         if (data.code == "00000") {
-          await connection.execute(
-            "INSERT INTO users SET phone = ?, otp = ?, veri = 0, time_otp = ? ",
-            [phone, otp, timeEnd],
-          );
+          await safeExecute("INSERT INTO users SET phone = ?, otp = ?, veri = 0, time_otp = ? ", [
+            phone,
+            otp,
+            timeEnd,
+          ]);
           return res.status(200).json({
             message: "Submitted successfully",
             status: true,
@@ -258,7 +278,7 @@ const verifyCode = async (req, res) => {
         async (error, response, body) => {
           const data = JSON.parse(body);
           if (data.code == "00000") {
-            await connection.execute("UPDATE users SET otp = ?, time_otp = ? WHERE phone = ? ", [
+            await safeExecute("UPDATE users SET otp = ?, time_otp = ? WHERE phone = ? ", [
               otp,
               timeEnd,
               phone,
@@ -295,9 +315,7 @@ const verifyCodePass = async (req, res) => {
     });
   }
 
-  const [rows] = await connection.query("SELECT * FROM users WHERE `phone` = ? AND veri = 1", [
-    phone,
-  ]);
+  const [rows] = await safeExecute("SELECT * FROM users WHERE `phone` = ? AND veri = 1", [phone]);
   if (rows.length == 0) {
     return res.status(200).json({
       message: "Account does not exist",
@@ -312,7 +330,7 @@ const verifyCodePass = async (req, res) => {
         async (error, response, body) => {
           const data = JSON.parse(body);
           if (data.code == "00000") {
-            await connection.execute("UPDATE users SET otp = ?, time_otp = ? WHERE phone = ? ", [
+            await safeExecute("UPDATE users SET otp = ?, time_otp = ? WHERE phone = ? ", [
               otp,
               timeEnd,
               phone,
@@ -351,7 +369,7 @@ const forGotPassword = async (req, res) => {
     });
   }
 
-  const [rows] = await connection.query("SELECT * FROM users WHERE `phone` = ? AND veri = 1", [
+  const [rows] = await safeExecute("SELECT * FROM users WHERE `phone` = ? AND veri = 1", [
     username,
   ]);
   if (rows.length == 0) {
@@ -364,10 +382,12 @@ const forGotPassword = async (req, res) => {
     const user = rows[0];
     if (user.time_otp - now > 0) {
       if (user.otp == otp) {
-        await connection.execute(
-          "UPDATE users SET password = ?, otp = ?, time_otp = ? WHERE phone = ? ",
-          [md5(pwd), otp2, timeEnd, username],
-        );
+        await safeExecute("UPDATE users SET password = ?, otp = ?, time_otp = ? WHERE phone = ? ", [
+          md5(pwd),
+          otp2,
+          timeEnd,
+          username,
+        ]);
         return res.status(200).json({
           message: "Change password successfully",
           status: true,
@@ -394,28 +414,25 @@ const forGotPassword = async (req, res) => {
 const keFuMenu = async (req, res) => {
   const auth = req.cookies.auth;
 
-  const [users] = await connection.query("SELECT `level`, `ctv` FROM users WHERE token = ?", [
-    auth,
-  ]);
+  const [users] = await safeExecute("SELECT `level`, `ctv` FROM users WHERE token = ?", [auth]);
 
   let telegram = "";
   if (users.length == 0) {
-    const [settings] = await connection.query("SELECT `telegram`, `cskh` FROM admin");
+    const [settings] = await safeExecute("SELECT `telegram`, `cskh` FROM admin");
     telegram = settings[0].telegram;
   } else {
     if (users[0].level != 0) {
-      var [settings] = await connection.query("SELECT * FROM admin");
+      var [settings] = await safeExecute("SELECT * FROM admin");
     } else {
-      var [check] = await connection.query("SELECT `telegram` FROM point_list WHERE phone = ?", [
+      var [check] = await safeExecute("SELECT `telegram` FROM point_list WHERE phone = ?", [
         users[0].ctv,
       ]);
       if (check.length == 0) {
-        var [settings] = await connection.query("SELECT * FROM admin");
+        var [settings] = await safeExecute("SELECT * FROM admin");
       } else {
-        var [settings] = await connection.query(
-          "SELECT `telegram` FROM point_list WHERE phone = ?",
-          [users[0].ctv],
-        );
+        var [settings] = await safeExecute("SELECT `telegram` FROM point_list WHERE phone = ?", [
+          users[0].ctv,
+        ]);
       }
     }
     telegram = settings[0].telegram;

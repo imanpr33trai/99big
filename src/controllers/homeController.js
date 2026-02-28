@@ -1,11 +1,11 @@
-import connection from "../config/connectDB.js";
-
 // import jwt from 'jsonwebtoken'
 // import md5 from "md5";
 // import e from "express";
 
+import { safeExecute } from "../lib/utils.js";
+
 const homePage = async (req, res) => {
-  const [settings] = await connection.query("SELECT `app` FROM admin");
+  const [settings] = await safeExecute("SELECT `app` FROM admin");
   const app = settings[0].app;
   return res.render("home/index.ejs", { app });
 };
@@ -76,8 +76,8 @@ const transfer = async (req, res) => {
 // member page
 const mianPage = async (req, res) => {
   const auth = req.cookies.auth;
-  const [user] = await connection.query("SELECT `level` FROM users WHERE `token` = ? ", [auth]);
-  const [settings] = await connection.query("SELECT `cskh` FROM admin");
+  const [user] = await safeExecute("SELECT `level` FROM users WHERE `token` = ? ", [auth]);
+  const [settings] = await safeExecute("SELECT `cskh` FROM admin");
   const cskh = settings[0].cskh;
   const level = user[0].level;
   return res.render("member/index.ejs", { level, cskh });
@@ -100,7 +100,7 @@ const newtutorial = async (req, res) => {
 
 const forgot = async (req, res) => {
   const auth = req.cookies.auth;
-  const [user] = await connection.query("SELECT `time_otp` FROM users WHERE token = ? ", [auth]);
+  const [user] = await safeExecute("SELECT `time_otp` FROM users WHERE token = ? ", [auth]);
   const time = user[0].time_otp;
   return res.render("member/forgot.ejs", { time });
 };
@@ -120,7 +120,7 @@ const myProfilePage = async (req, res) => {
 const getSalaryRecord = async (req, res) => {
   const auth = req.cookies.auth;
 
-  const [rows] = await connection.query(`SELECT * FROM users WHERE token = ?`, [auth]);
+  const [rows] = await safeExecute(`SELECT * FROM users WHERE token = ?`, [auth]);
   const rowstr = rows[0];
   if (!rows) {
     return res.status(200).json({
@@ -128,10 +128,9 @@ const getSalaryRecord = async (req, res) => {
       status: false,
     });
   }
-  const [getPhone] = await connection.query(
-    `SELECT * FROM salary WHERE phone = ? ORDER BY time DESC`,
-    [rowstr.phone],
-  );
+  const [getPhone] = await safeExecute(`SELECT * FROM salary WHERE phone = ? ORDER BY time DESC`, [
+    rowstr.phone,
+  ]);
 
   console.log("asdasdasd : " + [rows.phone]);
   return res.status(200).json({

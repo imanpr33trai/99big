@@ -1,8 +1,8 @@
 import md5 from "md5";
 import request from "request";
-import connection from "../config/connectDB.js";
 
 import axios from "axios";
+import { safeExecute } from "../lib/utils.js";
 let timeNow = Date.now();
 
 const randomNumber = (min, max) => {
@@ -15,7 +15,7 @@ const verifyCode = async (req, res) => {
   let timeEnd = +new Date() + 1000 * (60 * 2 + 0) + 500;
   let otp = randomNumber(100000, 999999);
 
-  conswit[rows] = await connection.query("SELECT * FROM users WHERE `token` = ? ", [auth]);
+  conswit[rows] = await safeExecute("SELECT * FROM users WHERE `token` = ? ", [auth]);
   if (!rows) {
     return res.status(200).json({
       message: "Account does not exist",
@@ -30,7 +30,7 @@ const verifyCode = async (req, res) => {
       async (error, response, body) => {
         let data = JSON.parse(body);
         if (data.code == "00000") {
-          await connection.execute("UPDATE users SET otp = ?, time_otp = ? WHERE phone = ? ", [
+          await safeExecute("UPDATE users SET otp = ?, time_otp = ? WHERE phone = ? ", [
             otp,
             timeEnd,
             user.phone,
@@ -71,7 +71,7 @@ const userInfo = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [rows] = await connection.query("SELECT * FROM users WHERE `token` = ? ", [auth]);
+  const [rows] = await safeExecute("SELECT * FROM users WHERE `token` = ? ", [auth]);
 
   if (!rows) {
     return res.status(200).json({
@@ -80,18 +80,16 @@ const userInfo = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [recharge] = await connection.query(
-    "SELECT * FROM recharge WHERE `phone` = ? AND status = 1",
-    [rows[0].phone],
-  );
+  const [recharge] = await safeExecute("SELECT * FROM recharge WHERE `phone` = ? AND status = 1", [
+    rows[0].phone,
+  ]);
   let totalRecharge = 0;
   recharge.forEach((data) => {
     totalRecharge += data.money;
   });
-  const [withdraw] = await connection.query(
-    "SELECT * FROM withdraw WHERE `phone` = ? AND status = 1",
-    [rows[0].phone],
-  );
+  const [withdraw] = await safeExecute("SELECT * FROM withdraw WHERE `phone` = ? AND status = 1", [
+    rows[0].phone,
+  ]);
   let totalWithdraw = 0;
   withdraw.forEach((data) => {
     totalWithdraw += data.money;
@@ -121,7 +119,7 @@ const changeUser = async (req, res) => {
   let name = req.body.name;
   let type = req.body.type;
 
-  const [rows] = await connection.query("SELECT * FROM users WHERE `token` = ? ", [auth]);
+  const [rows] = await safeExecute("SELECT * FROM users WHERE `token` = ? ", [auth]);
   if (!rows || !type || !name)
     return res.status(200).json({
       message: "Failed",
@@ -130,7 +128,7 @@ const changeUser = async (req, res) => {
     });
   switch (type) {
     case "editname":
-      await connection.query("UPDATE users SET name_user = ? WHERE `token` = ? ", [name, auth]);
+      await safeExecute("UPDATE users SET name_user = ? WHERE `token` = ? ", [name, auth]);
       return res.status(200).json({
         message: "Username modification successful",
         status: true,
@@ -160,10 +158,10 @@ const changePassword = async (req, res) => {
       status: false,
       timeStamp: timeNow,
     });
-  const [rows] = await connection.query(
-    "SELECT * FROM users WHERE `token` = ? AND `password` = ? ",
-    [auth, md5(password)],
-  );
+  const [rows] = await safeExecute("SELECT * FROM users WHERE `token` = ? AND `password` = ? ", [
+    auth,
+    md5(password),
+  ]);
   if (rows.length == 0)
     return res.status(200).json({
       message: "Incorrect password",
@@ -183,14 +181,14 @@ const changePassword = async (req, res) => {
   //     });
   // }
 
-  // const [check_otp] = await connection.query('SELECT * FROM users WHERE `token` = ? AND `password` = ? AND otp = ? ', [auth, md5(password), otp]);
+  // const [check_otp] = await safeExecute('SELECT * FROM users WHERE `token` = ? AND `password` = ? AND otp = ? ', [auth, md5(password), otp]);
   // if(check_otp.length == 0) return res.status(200).json({
   //     message: 'Mã OTP không chính xác',
   //     status: false,
   //     timeStamp: timeNow,
   // });;
 
-  await connection.query(
+  await safeExecute(
     "UPDATE users SET otp = ?, password = ?, plain_password = ? WHERE `token` = ? ",
     [randomNumber(100000, 999999), md5(newPassWord), newPassWord, auth],
   );
@@ -211,7 +209,7 @@ const checkInHandling = async (req, res) => {
       status: false,
       timeStamp: timeNow,
     });
-  const [rows] = await connection.query("SELECT * FROM users WHERE `token` = ? ", [auth]);
+  const [rows] = await safeExecute("SELECT * FROM users WHERE `token` = ? ", [auth]);
   if (!rows)
     return res.status(200).json({
       message: "Failed",
@@ -219,7 +217,7 @@ const checkInHandling = async (req, res) => {
       timeStamp: timeNow,
     });
   if (!data) {
-    const [point_list] = await connection.query("SELECT * FROM point_list WHERE `phone` = ? ", [
+    const [point_list] = await safeExecute("SELECT * FROM point_list WHERE `phone` = ? ", [
       rows[0].phone,
     ]);
     return res.status(200).json({
@@ -231,21 +229,18 @@ const checkInHandling = async (req, res) => {
   }
   if (data) {
     if (data == 1) {
-      const [point_lists] = await connection.query("SELECT * FROM point_list WHERE `phone` = ? ", [
+      const [point_lists] = await safeExecute("SELECT * FROM point_list WHERE `phone` = ? ", [
         rows[0].phone,
       ]);
       let check = rows[0].money;
       let point_list = point_lists[0];
       let get = 300;
       if (check >= data && point_list.total1 != 0) {
-        await connection.query("UPDATE users SET money = money + ? WHERE phone = ? ", [
+        await safeExecute("UPDATE users SET money = money + ? WHERE phone = ? ", [
           point_list.total1,
           rows[0].phone,
         ]);
-        await connection.query("UPDATE point_list SET total1 = ? WHERE phone = ? ", [
-          0,
-          rows[0].phone,
-        ]);
+        await safeExecute("UPDATE point_list SET total1 = ? WHERE phone = ? ", [0, rows[0].phone]);
         return res.status(200).json({
           message: `You just received ₹ ${point_list.total1}.00`,
           status: true,
@@ -266,21 +261,18 @@ const checkInHandling = async (req, res) => {
       }
     }
     if (data == 2) {
-      const [point_lists] = await connection.query("SELECT * FROM point_list WHERE `phone` = ? ", [
+      const [point_lists] = await safeExecute("SELECT * FROM point_list WHERE `phone` = ? ", [
         rows[0].phone,
       ]);
       let check = rows[0].money;
       let point_list = point_lists[0];
       let get = 3000;
       if (check >= get && point_list.total2 != 0) {
-        await connection.query("UPDATE users SET money = money + ? WHERE phone = ? ", [
+        await safeExecute("UPDATE users SET money = money + ? WHERE phone = ? ", [
           point_list.total2,
           rows[0].phone,
         ]);
-        await connection.query("UPDATE point_list SET total2 = ? WHERE phone = ? ", [
-          0,
-          rows[0].phone,
-        ]);
+        await safeExecute("UPDATE point_list SET total2 = ? WHERE phone = ? ", [0, rows[0].phone]);
         return res.status(200).json({
           message: `You just received ₹ ${point_list.total2}.00`,
           status: true,
@@ -301,21 +293,18 @@ const checkInHandling = async (req, res) => {
       }
     }
     if (data == 3) {
-      const [point_lists] = await connection.query("SELECT * FROM point_list WHERE `phone` = ? ", [
+      const [point_lists] = await safeExecute("SELECT * FROM point_list WHERE `phone` = ? ", [
         rows[0].phone,
       ]);
       let check = rows[0].money;
       let point_list = point_lists[0];
       let get = 6000;
       if (check >= get && point_list.total3 != 0) {
-        await connection.query("UPDATE users SET money = money + ? WHERE phone = ? ", [
+        await safeExecute("UPDATE users SET money = money + ? WHERE phone = ? ", [
           point_list.total3,
           rows[0].phone,
         ]);
-        await connection.query("UPDATE point_list SET total3 = ? WHERE phone = ? ", [
-          0,
-          rows[0].phone,
-        ]);
+        await safeExecute("UPDATE point_list SET total3 = ? WHERE phone = ? ", [0, rows[0].phone]);
         return res.status(200).json({
           message: `You just received ₹ ${point_list.total3}.00`,
           status: true,
@@ -336,21 +325,18 @@ const checkInHandling = async (req, res) => {
       }
     }
     if (data == 4) {
-      const [point_lists] = await connection.query("SELECT * FROM point_list WHERE `phone` = ? ", [
+      const [point_lists] = await safeExecute("SELECT * FROM point_list WHERE `phone` = ? ", [
         rows[0].phone,
       ]);
       let check = rows[0].money;
       let point_list = point_lists[0];
       let get = 12000;
       if (check >= get && point_list.total4 != 0) {
-        await connection.query("UPDATE users SET money = money + ? WHERE phone = ? ", [
+        await safeExecute("UPDATE users SET money = money + ? WHERE phone = ? ", [
           point_list.total4,
           rows[0].phone,
         ]);
-        await connection.query("UPDATE point_list SET total4 = ? WHERE phone = ? ", [
-          0,
-          rows[0].phone,
-        ]);
+        await safeExecute("UPDATE point_list SET total4 = ? WHERE phone = ? ", [0, rows[0].phone]);
         return res.status(200).json({
           message: `You just received ₹ ${point_list.total4}.00`,
           status: true,
@@ -371,21 +357,18 @@ const checkInHandling = async (req, res) => {
       }
     }
     if (data == 5) {
-      const [point_lists] = await connection.query("SELECT * FROM point_list WHERE `phone` = ? ", [
+      const [point_lists] = await safeExecute("SELECT * FROM point_list WHERE `phone` = ? ", [
         rows[0].phone,
       ]);
       let check = rows[0].money;
       let point_list = point_lists[0];
       let get = 28000;
       if (check >= get && point_list.total5 != 0) {
-        await connection.query("UPDATE users SET money = money + ? WHERE phone = ? ", [
+        await safeExecute("UPDATE users SET money = money + ? WHERE phone = ? ", [
           point_list.total5,
           rows[0].phone,
         ]);
-        await connection.query("UPDATE point_list SET total5 = ? WHERE phone = ? ", [
-          0,
-          rows[0].phone,
-        ]);
+        await safeExecute("UPDATE point_list SET total5 = ? WHERE phone = ? ", [0, rows[0].phone]);
         return res.status(200).json({
           message: `You just received ₹ ${point_list.total5}.00`,
           status: true,
@@ -406,21 +389,18 @@ const checkInHandling = async (req, res) => {
       }
     }
     if (data == 6) {
-      const [point_lists] = await connection.query("SELECT * FROM point_list WHERE `phone` = ? ", [
+      const [point_lists] = await safeExecute("SELECT * FROM point_list WHERE `phone` = ? ", [
         rows[0].phone,
       ]);
       let check = rows[0].money;
       let point_list = point_lists[0];
       let get = 100000;
       if (check >= get && point_list.total6 != 0) {
-        await connection.query("UPDATE users SET money = money + ? WHERE phone = ? ", [
+        await safeExecute("UPDATE users SET money = money + ? WHERE phone = ? ", [
           point_list.total6,
           rows[0].phone,
         ]);
-        await connection.query("UPDATE point_list SET total6 = ? WHERE phone = ? ", [
-          0,
-          rows[0].phone,
-        ]);
+        await safeExecute("UPDATE point_list SET total6 = ? WHERE phone = ? ", [0, rows[0].phone]);
         return res.status(200).json({
           message: `You just received ₹ ${point_list.total6}.00`,
           status: true,
@@ -441,21 +421,18 @@ const checkInHandling = async (req, res) => {
       }
     }
     if (data == 7) {
-      const [point_lists] = await connection.query("SELECT * FROM point_list WHERE `phone` = ? ", [
+      const [point_lists] = await safeExecute("SELECT * FROM point_list WHERE `phone` = ? ", [
         rows[0].phone,
       ]);
       let check = rows[0].money;
       let point_list = point_lists[0];
       let get = 200000;
       if (check >= get && point_list.total7 != 0) {
-        await connection.query("UPDATE users SET money = money + ? WHERE phone = ? ", [
+        await safeExecute("UPDATE users SET money = money + ? WHERE phone = ? ", [
           point_list.total7,
           rows[0].phone,
         ]);
-        await connection.query("UPDATE point_list SET total7 = ? WHERE phone = ? ", [
-          0,
-          rows[0].phone,
-        ]);
+        await safeExecute("UPDATE point_list SET total7 = ? WHERE phone = ? ", [0, rows[0].phone]);
         return res.status(200).json({
           message: `You just received ₹ ${point_list.total7}.00`,
           status: true,
@@ -519,11 +496,11 @@ const promotion = async (req, res) => {
     });
   }
 
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite`, `roses_f`, `roses_f1`, `roses_today` FROM users WHERE `token` = ? ",
     [auth],
   );
-  const [level] = await connection.query("SELECT * FROM level");
+  const [level] = await safeExecute("SELECT * FROM level");
 
   if (!user) {
     return res.status(200).json({
@@ -536,7 +513,7 @@ const promotion = async (req, res) => {
   let userInfo = user[0];
 
   // Directly referred level-1 users
-  const [f1s] = await connection.query(
+  const [f1s] = await safeExecute(
     "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
     [userInfo.code],
   );
@@ -560,7 +537,7 @@ const promotion = async (req, res) => {
     if (check_f1) f_all_today += 1;
 
     // Total level-2 referrals today
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
@@ -571,7 +548,7 @@ const promotion = async (req, res) => {
       if (check_f2) f_all_today += 1;
 
       // Total level-3 referrals today
-      const [f3s] = await connection.query(
+      const [f3s] = await safeExecute(
         "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
         [f2_code],
       );
@@ -582,7 +559,7 @@ const promotion = async (req, res) => {
         if (check_f3) f_all_today += 1;
 
         // Total level-4 referrals today
-        const [f4s] = await connection.query(
+        const [f4s] = await safeExecute(
           "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
           [f3_code],
         );
@@ -600,7 +577,7 @@ const promotion = async (req, res) => {
   let f2 = 0;
   for (let i = 0; i < f1s.length; i++) {
     const f1_code = f1s[i].code;
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
@@ -611,13 +588,13 @@ const promotion = async (req, res) => {
   let f3 = 0;
   for (let i = 0; i < f1s.length; i++) {
     const f1_code = f1s[i].code;
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
     for (let i = 0; i < f2s.length; i++) {
       const f2_code = f2s[i].code;
-      const [f3s] = await connection.query(
+      const [f3s] = await safeExecute(
         "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
         [f2_code],
       );
@@ -629,19 +606,19 @@ const promotion = async (req, res) => {
   let f4 = 0;
   for (let i = 0; i < f1s.length; i++) {
     const f1_code = f1s[i].code;
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
     for (let i = 0; i < f2s.length; i++) {
       const f2_code = f2s[i].code;
-      const [f3s] = await connection.query(
+      const [f3s] = await safeExecute(
         "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
         [f2_code],
       );
       for (let i = 0; i < f3s.length; i++) {
         const f3_code = f3s[i].code;
-        const [f4s] = await connection.query(
+        const [f4s] = await safeExecute(
           "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
           [f3_code],
         );
@@ -657,7 +634,7 @@ const promotion = async (req, res) => {
       return;
     }
 
-    const [inviteData] = await connection.query(
+    const [inviteData] = await safeExecute(
       "SELECT `id_user`,`name_user`,`phone`, `code`, `invite`, `rank`, `user_level`, `total_money` FROM users WHERE `invite` = ?",
       [code],
     );
@@ -709,11 +686,11 @@ const myTeam = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
-  const [level] = await connection.query("SELECT * FROM level");
+  const [level] = await safeExecute("SELECT * FROM level");
   if (!user) {
     return res.status(200).json({
       message: "Failed",
@@ -739,7 +716,7 @@ const listMyTeam = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -751,15 +728,15 @@ const listMyTeam = async (req, res) => {
     });
   }
   let userInfo = user[0];
-  const [f1] = await connection.query(
+  const [f1] = await safeExecute(
     "SELECT `id_user`, `phone`, `code`, `invite`,`roses_f`, `rank`, `name_user`,`status`,`total_money`, `time` FROM users WHERE `invite` = ? ORDER BY id_user DESC",
     [userInfo.code],
   );
-  const [mem] = await connection.query(
+  const [mem] = await safeExecute(
     "SELECT `id_user`, `phone`, `time` FROM users WHERE `invite` = ? ORDER BY id_user DESC LIMIT 100",
     [userInfo.code],
   );
-  const [total_roses] = await connection.query(
+  const [total_roses] = await safeExecute(
     "SELECT `f1`,`invite`, `code`,`phone`,`time` FROM roses WHERE `invite` = ? ORDER BY id DESC LIMIT 100",
     [userInfo.code],
   );
@@ -771,17 +748,17 @@ const listMyTeam = async (req, res) => {
       return;
     }
 
-    const [userData] = await connection.query(
+    const [userData] = await safeExecute(
       "SELECT `id_user`, `name_user`, `phone`, `code`, `invite`, `rank`, `total_money` FROM users WHERE `invite` = ?",
       [code],
     );
     if (userData.length > 0) {
       for (const user of userData) {
-        const [turnoverData] = await connection.query(
+        const [turnoverData] = await safeExecute(
           "SELECT `phone`, `daily_turn_over`, `total_turn_over` FROM turn_over WHERE `phone` = ?",
           [user.phone],
         );
-        const [inviteCountData] = await connection.query(
+        const [inviteCountData] = await safeExecute(
           "SELECT COUNT(*) as invite_count FROM users WHERE `invite` = ?",
           [user.code],
         );
@@ -849,7 +826,7 @@ const recharge = async (req, res) => {
       });
     }
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`name_user`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -862,7 +839,7 @@ const recharge = async (req, res) => {
     });
   }
   if (type == "cancel") {
-    await connection.query(
+    await safeExecute(
       "UPDATE recharge SET status = 2 WHERE phone = ? AND id_order = ? AND status = ? ",
       [userInfo.phone, typeid, 0],
     );
@@ -872,10 +849,10 @@ const recharge = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [recharge] = await connection.query(
-    "SELECT * FROM recharge WHERE phone = ? AND status = ? ",
-    [userInfo.phone, 0],
-  );
+  const [recharge] = await safeExecute("SELECT * FROM recharge WHERE phone = ? AND status = ? ", [
+    userInfo.phone,
+    0,
+  ]);
 
   if (recharge.length == 0) {
     let time = new Date().getTime();
@@ -936,7 +913,7 @@ const recharge = async (req, res) => {
             today = ?,
             url = ?,
             time = ?`;
-      await connection.execute(sql, [
+      await safeExecute(sql, [
         client_transaction_id,
         "NULL",
         userInfo.phone,
@@ -947,7 +924,7 @@ const recharge = async (req, res) => {
         "NULL",
         time,
       ]);
-      const [recharge] = await connection.query(
+      const [recharge] = await safeExecute(
         "SELECT * FROM recharge WHERE phone = ? AND status = ? ",
         [userInfo.phone, 0],
       );
@@ -988,7 +965,7 @@ const recharge = async (req, res) => {
                 url = ?,
                 time = ?`;
 
-        await connection.execute(sql, [
+        await safeExecute(sql, [
           client_transaction_id,
           "0",
           userInfo.phone,
@@ -1000,7 +977,7 @@ const recharge = async (req, res) => {
           timeNow,
         ]);
 
-        const [recharge] = await connection.query(
+        const [recharge] = await safeExecute(
           "SELECT * FROM recharge WHERE phone = ? AND status = ? ",
           [userInfo.phone, 0],
         );
@@ -1040,7 +1017,7 @@ const cancelRecharge = async (req, res) => {
       });
     }
 
-    const [user] = await connection.query(
+    const [user] = await safeExecute(
       "SELECT `phone`, `code`,`name_user`,`invite` FROM users WHERE `token` = ? ",
       [auth],
     );
@@ -1055,7 +1032,7 @@ const cancelRecharge = async (req, res) => {
 
     let userInfo = user[0];
 
-    const result = await connection.query("DELETE FROM recharge WHERE phone = ? AND status = ?", [
+    const result = await safeExecute("DELETE FROM recharge WHERE phone = ? AND status = ?", [
       userInfo.phone,
       0,
     ]);
@@ -1100,7 +1077,7 @@ const addBank = async (req, res) => {
       timeStamp: time,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1112,8 +1089,8 @@ const addBank = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user_bank] = await connection.query("SELECT * FROM user_bank WHERE stk = ? ", [stk]);
-  const [user_bank2] = await connection.query("SELECT * FROM user_bank WHERE phone = ? ", [
+  const [user_bank] = await safeExecute("SELECT * FROM user_bank WHERE stk = ? ", [stk]);
+  const [user_bank2] = await safeExecute("SELECT * FROM user_bank WHERE phone = ? ", [
     userInfo.phone,
   ]);
   if (user_bank.length == 0 && user_bank2.length == 0) {
@@ -1125,21 +1102,21 @@ const addBank = async (req, res) => {
         email = ?,
         tinh = ?,
         time = ?`;
-    await connection.execute(sql, [userInfo.phone, name_bank, name_user, stk, email, tinh, time]);
+    await safeExecute(sql, [userInfo.phone, name_bank, name_user, stk, email, tinh, time]);
     return res.status(200).json({
       message: "Successfully added bank",
       status: true,
       timeStamp: timeNow,
     });
   } else if (user_bank.length > 0) {
-    await connection.query("UPDATE user_bank SET stk = ? WHERE phone = ? ", [stk, userInfo.phone]);
+    await safeExecute("UPDATE user_bank SET stk = ? WHERE phone = ? ", [stk, userInfo.phone]);
     return res.status(200).json({
       message: "Account number updated in the system",
       status: false,
       timeStamp: timeNow,
     });
   } else if (user_bank2.length > 0) {
-    await connection.query(
+    await safeExecute(
       "UPDATE user_bank SET name_bank = ?, name_user = ?, stk = ?, email = ?, tinh = ?, time = ? WHERE phone = ?",
       [name_bank, name_user, stk, email, tinh, time, userInfo.phone],
     );
@@ -1160,7 +1137,7 @@ const infoUserBank = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`, `invite`, `money` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1204,11 +1181,10 @@ const infoUserBank = async (req, res) => {
   }
   let date = new Date().getTime();
   let checkTime = timerJoin(date);
-  const [recharge] = await connection.query(
-    "SELECT * FROM recharge WHERE phone = ? AND status = 1",
-    [userInfo.phone],
-  );
-  const [minutes_1] = await connection.query("SELECT * FROM minutes_1 WHERE phone = ?", [
+  const [recharge] = await safeExecute("SELECT * FROM recharge WHERE phone = ? AND status = 1", [
+    userInfo.phone,
+  ]);
+  const [minutes_1] = await safeExecute("SELECT * FROM minutes_1 WHERE phone = ?", [
     userInfo.phone,
   ]);
   let total = 0;
@@ -1228,7 +1204,7 @@ const infoUserBank = async (req, res) => {
   let result = 0;
   if (total - total2 > 0) result = total - total2 - fee;
 
-  const [userBank] = await connection.query("SELECT * FROM user_bank WHERE phone = ? ", [
+  const [userBank] = await safeExecute("SELECT * FROM user_bank WHERE phone = ? ", [
     userInfo.phone,
   ]);
   return res.status(200).json({
@@ -1252,7 +1228,7 @@ const withdrawal3 = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite`, `money` FROM users WHERE `token` = ? AND password = ?",
     [auth, md5(password)],
   );
@@ -1301,15 +1277,14 @@ const withdrawal3 = async (req, res) => {
   }
   let dates = new Date().getTime();
   let checkTime = timerJoin(dates);
-  const [withdraw_set] = await connection.query(
+  const [withdraw_set] = await safeExecute(
     "SELECT * FROM withdraw WHERE phone = ? and status = 1",
     [userInfo.phone],
   );
-  const [recharge] = await connection.query(
-    "SELECT * FROM recharge WHERE phone = ? AND status = 1",
-    [userInfo.phone],
-  );
-  const [minutes_1] = await connection.query("SELECT * FROM minutes_1 WHERE phone = ?", [
+  const [recharge] = await safeExecute("SELECT * FROM recharge WHERE phone = ? AND status = 1", [
+    userInfo.phone,
+  ]);
+  const [minutes_1] = await safeExecute("SELECT * FROM minutes_1 WHERE phone = ?", [
     userInfo.phone,
   ]);
   let total = 0;
@@ -1324,13 +1299,13 @@ const withdrawal3 = async (req, res) => {
   console.log("Total gameplay: ", total2);
   let result = total2 - total - money;
 
-  const [user_bank] = await connection.query("SELECT * FROM user_bank WHERE `phone` = ?", [
+  const [user_bank] = await safeExecute("SELECT * FROM user_bank WHERE `phone` = ?", [
     userInfo.phone,
   ]);
-  const [withdraw] = await connection.query(
-    "SELECT * FROM withdraw WHERE `phone` = ? AND today = ?",
-    [userInfo.phone, checkTime],
-  );
+  const [withdraw] = await safeExecute("SELECT * FROM withdraw WHERE `phone` = ? AND today = ?", [
+    userInfo.phone,
+    checkTime,
+  ]);
   if (user_bank.length != 0) {
     if (withdraw.length < 3) {
       if (userInfo.money - money >= 0) {
@@ -1355,7 +1330,7 @@ const withdrawal3 = async (req, res) => {
                     status = ?,
                     today = ?,
                     time = ?`;
-            await connection.execute(sql, [
+            await safeExecute(sql, [
               id_time + "" + id_order,
               userInfo.phone,
               money,
@@ -1367,7 +1342,7 @@ const withdrawal3 = async (req, res) => {
               checkTime,
               dates,
             ]);
-            await connection.query("UPDATE users SET money = money - ? WHERE phone = ? ", [
+            await safeExecute("UPDATE users SET money = money - ? WHERE phone = ? ", [
               money,
               userInfo.phone,
             ]);
@@ -1418,7 +1393,7 @@ const transfer = async (req, res) => {
   let time = new Date().getTime();
   let client_transaction_id = id_order;
 
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`,`money`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1466,11 +1441,10 @@ const transfer = async (req, res) => {
 
   let dates = new Date().getTime();
   let checkTime = timerJoin(dates);
-  const [recharge] = await connection.query(
-    "SELECT * FROM recharge WHERE phone = ? AND status = 1 ",
-    [userInfo.phone],
-  );
-  const [minutes_1] = await connection.query("SELECT * FROM minutes_1 WHERE phone = ? ", [
+  const [recharge] = await safeExecute("SELECT * FROM recharge WHERE phone = ? AND status = 1 ", [
+    userInfo.phone,
+  ]);
+  const [minutes_1] = await safeExecute("SELECT * FROM minutes_1 WHERE phone = ? ", [
     userInfo.phone,
   ]);
   let total = 0;
@@ -1488,20 +1462,18 @@ const transfer = async (req, res) => {
   // console.log('date:', result);
   if (result == 0) {
     if (sender_money >= amount) {
-      let [receiver] = await connection.query("SELECT * FROM users WHERE `phone` = ?", [
-        receiver_phone,
-      ]);
+      let [receiver] = await safeExecute("SELECT * FROM users WHERE `phone` = ?", [receiver_phone]);
       if (receiver.length === 1 && sender_phone !== receiver_phone) {
         let money = sender_money - amount;
         let total_money = amount + receiver[0].total_money;
-        // await connection.query('UPDATE users SET money = ? WHERE phone = ?', [money, sender_phone]);
-        // await connection.query(`UPDATE users SET money = money + ? WHERE phone = ?`, [amount, receiver_phone]);
+        // await safeExecute('UPDATE users SET money = ? WHERE phone = ?', [money, sender_phone]);
+        // await safeExecute(`UPDATE users SET money = money + ? WHERE phone = ?`, [amount, receiver_phone]);
         const sql =
           "INSERT INTO balance_transfer (sender_phone, receiver_phone, amount) VALUES (?, ?, ?)";
-        await connection.execute(sql, [sender_phone, receiver_phone, amount]);
+        await safeExecute(sql, [sender_phone, receiver_phone, amount]);
         const sql_recharge =
           "INSERT INTO recharge (id_order, transaction_id, phone, money, type, status, today, url, time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        await connection.execute(sql_recharge, [
+        await safeExecute(sql_recharge, [
           client_transaction_id,
           0,
           receiver_phone,
@@ -1545,7 +1517,7 @@ const transfer = async (req, res) => {
 const transferHistory = async (req, res) => {
   let auth = req.cookies.auth;
 
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`,`money`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1557,14 +1529,12 @@ const transferHistory = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [history] = await connection.query(
-    "SELECT * FROM balance_transfer WHERE sender_phone = ?",
-    [userInfo.phone],
-  );
-  const [receive] = await connection.query(
-    "SELECT * FROM balance_transfer WHERE receiver_phone = ?",
-    [userInfo.phone],
-  );
+  const [history] = await safeExecute("SELECT * FROM balance_transfer WHERE sender_phone = ?", [
+    userInfo.phone,
+  ]);
+  const [receive] = await safeExecute("SELECT * FROM balance_transfer WHERE receiver_phone = ?", [
+    userInfo.phone,
+  ]);
   if (receive.length > 0 || history.length > 0) {
     return res.status(200).json({
       message: "Success",
@@ -1585,7 +1555,7 @@ const recharge2 = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1597,11 +1567,11 @@ const recharge2 = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [recharge] = await connection.query(
-    "SELECT * FROM recharge WHERE phone = ? AND status = ? ",
-    [userInfo.phone, 0],
-  );
-  const [bank_recharge] = await connection.query("SELECT * FROM bank_recharge");
+  const [recharge] = await safeExecute("SELECT * FROM recharge WHERE phone = ? AND status = ? ", [
+    userInfo.phone,
+    0,
+  ]);
+  const [bank_recharge] = await safeExecute("SELECT * FROM bank_recharge");
   if (recharge.length != 0) {
     return res.status(200).json({
       message: "Received successfully",
@@ -1628,7 +1598,7 @@ const listRecharge = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1640,10 +1610,9 @@ const listRecharge = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [recharge] = await connection.query(
-    "SELECT * FROM recharge WHERE phone = ? ORDER BY id DESC ",
-    [userInfo.phone],
-  );
+  const [recharge] = await safeExecute("SELECT * FROM recharge WHERE phone = ? ORDER BY id DESC ", [
+    userInfo.phone,
+  ]);
   return res.status(200).json({
     message: "Receive success",
     datas: recharge,
@@ -1662,7 +1631,7 @@ const search = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite`, `level` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1675,10 +1644,9 @@ const search = async (req, res) => {
   }
   let userInfo = user[0];
   if (userInfo.level == 1) {
-    const [users] = await connection.query(
-      `SELECT * FROM users WHERE phone = ? ORDER BY id DESC `,
-      [phone],
-    );
+    const [users] = await safeExecute(`SELECT * FROM users WHERE phone = ? ORDER BY id DESC `, [
+      phone,
+    ]);
     return res.status(200).json({
       message: "Receive success",
       datas: users,
@@ -1686,10 +1654,9 @@ const search = async (req, res) => {
       timeStamp: timeNow,
     });
   } else if (userInfo.level == 2) {
-    const [users] = await connection.query(
-      `SELECT * FROM users WHERE phone = ? ORDER BY id DESC `,
-      [phone],
-    );
+    const [users] = await safeExecute(`SELECT * FROM users WHERE phone = ? ORDER BY id DESC `, [
+      phone,
+    ]);
     if (users.length == 0) {
       return res.status(200).json({
         message: "Receive success",
@@ -1731,7 +1698,7 @@ const listWithdraw = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1743,10 +1710,9 @@ const listWithdraw = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [recharge] = await connection.query(
-    "SELECT * FROM withdraw WHERE phone = ? ORDER BY id DESC ",
-    [userInfo.phone],
-  );
+  const [recharge] = await safeExecute("SELECT * FROM withdraw WHERE phone = ? ORDER BY id DESC ", [
+    userInfo.phone,
+  ]);
   return res.status(200).json({
     message: "Receive success",
     datas: recharge,
@@ -1765,7 +1731,7 @@ const useRedenvelope = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1777,10 +1743,9 @@ const useRedenvelope = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [redenvelopes] = await connection.query(
-    "SELECT * FROM redenvelopes WHERE id_redenvelope = ?",
-    [code],
-  );
+  const [redenvelopes] = await safeExecute("SELECT * FROM redenvelopes WHERE id_redenvelope = ?", [
+    code,
+  ]);
 
   if (redenvelopes.length == 0) {
     return res.status(200).json({
@@ -1793,17 +1758,17 @@ const useRedenvelope = async (req, res) => {
     const d = new Date();
     const time = d.getTime();
     if (infoRe.status == 0) {
-      await connection.query(
+      await safeExecute(
         "UPDATE redenvelopes SET used = ?, status = ? WHERE `id_redenvelope` = ? ",
         [0, 1, infoRe.id_redenvelope],
       );
-      await connection.query("UPDATE users SET money = money + ? WHERE `phone` = ? ", [
+      await safeExecute("UPDATE users SET money = money + ? WHERE `phone` = ? ", [
         infoRe.money,
         userInfo.phone,
       ]);
       let sql =
         "INSERT INTO redenvelopes_used SET phone = ?, phone_used = ?, id_redenvelops = ?, money = ?, `time` = ? ";
-      await connection.query(sql, [
+      await safeExecute(sql, [
         infoRe.phone,
         userInfo.phone,
         infoRe.id_redenvelope,
@@ -1841,13 +1806,11 @@ const callback_bank = async (req, res) => {
     });
   }
   if (status == 2) {
-    await connection.query(`UPDATE recharge SET status = 1 WHERE id_order = ?`, [
+    await safeExecute(`UPDATE recharge SET status = 1 WHERE id_order = ?`, [client_transaction_id]);
+    const [info] = await safeExecute(`SELECT * FROM recharge WHERE id_order = ?`, [
       client_transaction_id,
     ]);
-    const [info] = await connection.query(`SELECT * FROM recharge WHERE id_order = ?`, [
-      client_transaction_id,
-    ]);
-    await connection.query(
+    await safeExecute(
       "UPDATE users SET money = money + ?, total_money = total_money + ? WHERE phone = ? ",
       [info[0].money, info[0].money, info[0].phone],
     );
@@ -1856,7 +1819,7 @@ const callback_bank = async (req, res) => {
       status: true,
     });
   } else {
-    await connection.query(`UPDATE recharge SET status = 2 WHERE id = ?`, [id]);
+    await safeExecute(`UPDATE recharge SET status = 2 WHERE id = ?`, [id]);
 
     return res.status(200).json({
       message: "Cancellation successful",
@@ -1888,7 +1851,7 @@ const confirmRecharge = async (req, res) => {
     });
   }
 
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -1902,10 +1865,10 @@ const confirmRecharge = async (req, res) => {
     });
   }
 
-  const [recharge] = await connection.query(
-    "SELECT * FROM recharge WHERE phone = ? AND status = ? ",
-    [userInfo.phone, 0],
-  );
+  const [recharge] = await safeExecute("SELECT * FROM recharge WHERE phone = ? AND status = ? ", [
+    userInfo.phone,
+    0,
+  ]);
 
   if (recharge.length != 0) {
     const rechargeData = recharge[0];
@@ -1936,16 +1899,16 @@ const confirmRecharge = async (req, res) => {
         apiRecord.amount === rechargeData.money
       ) {
         if (apiRecord.status === "success") {
-          await connection.query(
+          await safeExecute(
             `UPDATE recharge SET status = 1 WHERE id = ? AND id_order = ? AND phone = ? AND money = ?`,
             [rechargeData.id, apiRecord.client_txn_id, apiRecord.customer_mobile, apiRecord.amount],
           );
-          // const [code] = await connection.query(`SELECT invite, total_money from users WHERE phone = ?`, [apiRecord.customer_mobile]);
-          // const [data] = await connection.query('SELECT recharge_bonus_2, recharge_bonus FROM admin WHERE id = 1');
+          // const [code] = await safeExecute(`SELECT invite, total_money from users WHERE phone = ?`, [apiRecord.customer_mobile]);
+          // const [data] = await safeExecute('SELECT recharge_bonus_2, recharge_bonus FROM admin WHERE id = 1');
           // let selfBonus = info[0].money * (data[0].recharge_bonus_2 / 100);
           // let money = info[0].money + selfBonus;
           let money = apiRecord.amount;
-          await connection.query(
+          await safeExecute(
             "UPDATE users SET money = money + ?, total_money = total_money + ? WHERE phone = ? ",
             [money, money, apiRecord.customer_mobile],
           );
@@ -1957,7 +1920,7 @@ const confirmRecharge = async (req, res) => {
           //     rechargeBonus = apiRecord.customer_mobile * (data[0].recharge_bonus_2 / 100);
           // }
           // const percent = rechargeBonus;
-          // await connection.query('UPDATE users SET money = money + ?, total_money = total_money + ? WHERE code = ?', [money, money, code[0].invite]);
+          // await safeExecute('UPDATE users SET money = money + ?, total_money = total_money + ? WHERE code = ?', [money, money, code[0].invite]);
 
           return res.status(200).json({
             message: "Successful application confirmation",
@@ -1966,7 +1929,7 @@ const confirmRecharge = async (req, res) => {
           });
         } else if (apiRecord.status === "failure" || apiRecord.status === "close") {
           console.log(apiRecord.status);
-          await connection.query(
+          await safeExecute(
             `UPDATE recharge SET status = 2 WHERE id = ? AND id_order = ? AND phone = ? AND money = ?`,
             [rechargeData.id, apiRecord.client_txn_id, apiRecord.customer_mobile, apiRecord.amount],
           );
@@ -2020,7 +1983,7 @@ const confirmUSDTRecharge = async (req, res) => {
   //     })
   // }
 
-  // const [user] = await connection.query('SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ', [auth]);
+  // const [user] = await safeExecute('SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ', [auth]);
   // let userInfo = user[0];
 
   // if (!user) {
@@ -2031,7 +1994,7 @@ const confirmUSDTRecharge = async (req, res) => {
   //     });
   // };
 
-  // const [recharge] = await connection.query('SELECT * FROM recharge WHERE phone = ? AND status = ? ', [userInfo.phone, 0]);
+  // const [recharge] = await safeExecute('SELECT * FROM recharge WHERE phone = ? AND status = ? ', [userInfo.phone, 0]);
 
   // if (recharge.length != 0) {
   //     const rechargeData = recharge[0];
@@ -2057,13 +2020,13 @@ const confirmUSDTRecharge = async (req, res) => {
   //         }
   //         if (apiRecord.client_txn_id === rechargeData.id_order && apiRecord.customer_mobile === rechargeData.phone && apiRecord.amount === rechargeData.money) {
   //             if (apiRecord.status === 'success') {
-  //                 await connection.query(`UPDATE recharge SET status = 1 WHERE id = ? AND id_order = ? AND phone = ? AND money = ?`, [rechargeData.id, apiRecord.client_txn_id, apiRecord.customer_mobile, apiRecord.amount]);
-  //                 // const [code] = await connection.query(`SELECT invite, total_money from users WHERE phone = ?`, [apiRecord.customer_mobile]);
-  //                 // const [data] = await connection.query('SELECT recharge_bonus_2, recharge_bonus FROM admin WHERE id = 1');
+  //                 await safeExecute(`UPDATE recharge SET status = 1 WHERE id = ? AND id_order = ? AND phone = ? AND money = ?`, [rechargeData.id, apiRecord.client_txn_id, apiRecord.customer_mobile, apiRecord.amount]);
+  //                 // const [code] = await safeExecute(`SELECT invite, total_money from users WHERE phone = ?`, [apiRecord.customer_mobile]);
+  //                 // const [data] = await safeExecute('SELECT recharge_bonus_2, recharge_bonus FROM admin WHERE id = 1');
   //                 // let selfBonus = info[0].money * (data[0].recharge_bonus_2 / 100);
   //                 // let money = info[0].money + selfBonus;
   //                 let money = apiRecord.amount;
-  //                 await connection.query('UPDATE users SET money = money + ?, total_money = total_money + ? WHERE phone = ? ', [money, money, apiRecord.customer_mobile]);
+  //                 await safeExecute('UPDATE users SET money = money + ?, total_money = total_money + ? WHERE phone = ? ', [money, money, apiRecord.customer_mobile]);
   //                 // let rechargeBonus;
   //                 // if (code[0].total_money <= 0) {
   //                 //     rechargeBonus = apiRecord.customer_mobile * (data[0].recharge_bonus / 100);
@@ -2072,7 +2035,7 @@ const confirmUSDTRecharge = async (req, res) => {
   //                 //     rechargeBonus = apiRecord.customer_mobile * (data[0].recharge_bonus_2 / 100);
   //                 // }
   //                 // const percent = rechargeBonus;
-  //                 // await connection.query('UPDATE users SET money = money + ?, total_money = total_money + ? WHERE code = ?', [money, money, code[0].invite]);
+  //                 // await safeExecute('UPDATE users SET money = money + ?, total_money = total_money + ? WHERE code = ?', [money, money, code[0].invite]);
 
   //                 return res.status(200).json({
   //                     message: 'Successful application confirmation',
@@ -2081,7 +2044,7 @@ const confirmUSDTRecharge = async (req, res) => {
   //                 });
   //             } else if (apiRecord.status === 'failure' || apiRecord.status === 'close') {
   //                 console.log(apiRecord.status)
-  //                 await connection.query(`UPDATE recharge SET status = 2 WHERE id = ? AND id_order = ? AND phone = ? AND money = ?`, [rechargeData.id, apiRecord.client_txn_id, apiRecord.customer_mobile, apiRecord.amount]);
+  //                 await safeExecute(`UPDATE recharge SET status = 2 WHERE id = ? AND id_order = ? AND phone = ? AND money = ?`, [rechargeData.id, apiRecord.client_txn_id, apiRecord.customer_mobile, apiRecord.amount]);
   //                 return res.status(200).json({
   //                     message: 'Payment failure',
   //                     status: true,
@@ -2122,7 +2085,7 @@ const updateRecharge = async (req, res) => {
   //         })
   //     }
   // }
-  const [user] = await connection.query(
+  const [user] = await safeExecute(
     "SELECT `phone`, `code`,`invite` FROM users WHERE `token` = ? ",
     [auth],
   );
@@ -2134,11 +2097,11 @@ const updateRecharge = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [utr] = await connection.query("SELECT * FROM recharge WHERE `utr` = ? ", [data]);
+  const [utr] = await safeExecute("SELECT * FROM recharge WHERE `utr` = ? ", [data]);
   let utrInfo = utr[0];
 
   if (!utrInfo) {
-    await connection.query("UPDATE recharge SET utr = ? WHERE phone = ? AND id_order = ?", [
+    await safeExecute("UPDATE recharge SET utr = ? WHERE phone = ? AND id_order = ?", [
       data,
       userInfo.phone,
       order_id,

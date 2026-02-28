@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import connection from "../config/connectDB.js";
+import { safeExecute } from "../lib/utils.js";
 import k3Controller from "./k3Controller.js";
 import k5Controller from "./k5Controller.js";
 import winGoController from "./winGoController.js";
@@ -8,7 +8,7 @@ const cronJobGame1p = (io) => {
   cron.schedule("*/1 * * * *", async () => {
     await winGoController.addWinGo(1);
     await winGoController.handlingWinGo1P(1);
-    const [winGo1] = await connection.execute(
+    const [winGo1] = await safeExecute(
       'SELECT * FROM `wingo` WHERE `game` = "wingo" ORDER BY `id` DESC LIMIT 2 ',
       [],
     );
@@ -17,7 +17,7 @@ const cronJobGame1p = (io) => {
 
     await k5Controller.add5D(1);
     await k5Controller.handling5D(1);
-    const [k5D] = await connection.execute(
+    const [k5D] = await safeExecute(
       "SELECT * FROM 5d WHERE `game` = 1 ORDER BY `id` DESC LIMIT 2 ",
       [],
     );
@@ -26,7 +26,7 @@ const cronJobGame1p = (io) => {
 
     await k3Controller.addK3(1);
     await k3Controller.handlingK3(1);
-    const [k3] = await connection.execute(
+    const [k3] = await safeExecute(
       "SELECT * FROM k3 WHERE `game` = 1 ORDER BY `id` DESC LIMIT 2 ",
       [],
     );
@@ -37,7 +37,7 @@ const cronJobGame1p = (io) => {
   cron.schedule("*/1 * * * *", async () => {
     await winGoController.addWinGo(3);
     await winGoController.handlingWinGo1P(3);
-    const [winGo1] = await connection.execute(
+    const [winGo1] = await safeExecute(
       'SELECT * FROM `wingo` WHERE `game` = "wingo3" ORDER BY `id` DESC LIMIT 2 ',
       [],
     );
@@ -46,7 +46,7 @@ const cronJobGame1p = (io) => {
 
     await k5Controller.add5D(3);
     await k5Controller.handling5D(3);
-    const [k5D] = await connection.execute(
+    const [k5D] = await safeExecute(
       "SELECT * FROM 5d WHERE `game` = 3 ORDER BY `id` DESC LIMIT 2 ",
       [],
     );
@@ -55,7 +55,7 @@ const cronJobGame1p = (io) => {
 
     await k3Controller.addK3(3);
     await k3Controller.handlingK3(3);
-    const [k3] = await connection.execute(
+    const [k3] = await safeExecute(
       "SELECT * FROM k3 WHERE `game` = 3 ORDER BY `id` DESC LIMIT 2 ",
       [],
     );
@@ -66,7 +66,7 @@ const cronJobGame1p = (io) => {
   cron.schedule("*/1 * * * *", async () => {
     await winGoController.addWinGo(5);
     await winGoController.handlingWinGo1P(5);
-    const [winGo1] = await connection.execute(
+    const [winGo1] = await safeExecute(
       'SELECT * FROM `wingo` WHERE `game` = "wingo5" ORDER BY `id` DESC LIMIT 2 ',
       [],
     );
@@ -75,7 +75,7 @@ const cronJobGame1p = (io) => {
 
     await k5Controller.add5D(5);
     await k5Controller.handling5D(5);
-    const [k5D] = await connection.execute(
+    const [k5D] = await safeExecute(
       "SELECT * FROM 5d WHERE `game` = 5 ORDER BY `id` DESC LIMIT 2 ",
       [],
     );
@@ -84,7 +84,7 @@ const cronJobGame1p = (io) => {
 
     await k3Controller.addK3(5);
     await k3Controller.handlingK3(5);
-    const [k3] = await connection.execute(
+    const [k3] = await safeExecute(
       "SELECT * FROM k3 WHERE `game` = 5 ORDER BY `id` DESC LIMIT 2 ",
       [],
     );
@@ -95,7 +95,7 @@ const cronJobGame1p = (io) => {
   cron.schedule("*/1 * * * *", async () => {
     await winGoController.addWinGo(10);
     await winGoController.handlingWinGo1P(10);
-    const [winGo1] = await connection.execute(
+    const [winGo1] = await safeExecute(
       'SELECT * FROM `wingo` WHERE `game` = "wingo10" ORDER BY `id` DESC LIMIT 2 ',
       [],
     );
@@ -104,7 +104,7 @@ const cronJobGame1p = (io) => {
 
     await k5Controller.add5D(10);
     await k5Controller.handling5D(10);
-    const [k5D] = await connection.execute(
+    const [k5D] = await safeExecute(
       "SELECT * FROM 5d WHERE `game` = 10 ORDER BY `id` DESC LIMIT 2 ",
       [],
     );
@@ -113,7 +113,7 @@ const cronJobGame1p = (io) => {
 
     await k3Controller.addK3(10);
     await k3Controller.handlingK3(10);
-    const [k3] = await connection.execute(
+    const [k3] = await safeExecute(
       "SELECT * FROM k3 WHERE `game` = 10 ORDER BY `id` DESC LIMIT 2 ",
       [],
     );
@@ -122,8 +122,8 @@ const cronJobGame1p = (io) => {
   });
 
   cron.schedule("* * 0 * * *", async () => {
-    await connection.execute("UPDATE users SET roses_today = ?", [0]);
-    await connection.execute("UPDATE point_list SET money = ?", [0]);
+    await safeExecute("UPDATE users SET roses_today = ?", [0]);
+    await safeExecute("UPDATE point_list SET money = ?", [0]);
   });
 };
 

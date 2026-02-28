@@ -2,6 +2,26 @@
 -- Run this file first to create all required tables
 
 -- ============================================
+-- DATA TYPE MIGRATION QUERIES (Run if tables already exist)
+-- ============================================
+
+-- Fix id_product in minutes_1 (INT -> VARCHAR)
+ALTER TABLE `minutes_1` MODIFY COLUMN `id_product` VARCHAR(50) DEFAULT '';
+ALTER TABLE `minutes_1` MODIFY COLUMN `stage` VARCHAR(50) DEFAULT '';
+
+-- Fix stage in result_k3 (INT -> VARCHAR for large period values)
+ALTER TABLE `result_k3` MODIFY COLUMN `stage` VARCHAR(50) DEFAULT '';
+
+-- Fix ctv in users (INT -> VARCHAR to store phone numbers)
+ALTER TABLE `users` MODIFY COLUMN `ctv` VARCHAR(20) DEFAULT '';
+
+-- Add missing columns to admin table
+ALTER TABLE `admin` ADD COLUMN IF NOT EXISTS `bs1` VARCHAR(50) DEFAULT '0';
+ALTER TABLE `admin` ADD COLUMN IF NOT EXISTS `bs3` VARCHAR(50) DEFAULT '0';
+ALTER TABLE `admin` ADD COLUMN IF NOT EXISTS `bs5` VARCHAR(50) DEFAULT '0';
+ALTER TABLE `admin` ADD COLUMN IF NOT EXISTS `bs10` VARCHAR(50) DEFAULT '0';
+
+-- ============================================
 -- CORE GAME TABLES
 -- ============================================
 
@@ -50,7 +70,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `money` DECIMAL(10,2) DEFAULT 0,
   `code` VARCHAR(50) NOT NULL UNIQUE,
   `invite` VARCHAR(50) DEFAULT '',
-  `ctv` INT DEFAULT 0,
+  `ctv` VARCHAR(20) DEFAULT '',
   `veri` INT DEFAULT 0,
   `otp` VARCHAR(10) DEFAULT '',
   `time_otp` BIGINT DEFAULT 0,
@@ -196,11 +216,11 @@ CREATE TABLE IF NOT EXISTS `balance_transfer` (
 -- Table: minutes_1 - Wingo bet records (1 minute)
 CREATE TABLE IF NOT EXISTS `minutes_1` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `id_product` INT DEFAULT 0,
+  `id_product` VARCHAR(50) DEFAULT '',
   `phone` VARCHAR(20) NOT NULL,
   `code` VARCHAR(50) NOT NULL,
   `invite` VARCHAR(50) NOT NULL,
-  `stage` INT DEFAULT 0,
+  `stage` VARCHAR(50) DEFAULT 0,
   `level` INT DEFAULT 0,
   `money` DECIMAL(10,2) DEFAULT 0,
   `price` DECIMAL(10,2) DEFAULT 0,
@@ -219,7 +239,7 @@ CREATE TABLE IF NOT EXISTS `minutes_1` (
 -- Table: result_5d - 5D bet results
 CREATE TABLE IF NOT EXISTS `result_5d` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `id_product` INT DEFAULT 0,
+  `id_product` VARCHAR(50) DEFAULT '',
   `phone` VARCHAR(20) NOT NULL,
   `code` VARCHAR(50) NOT NULL,
   `invite` VARCHAR(50) NOT NULL,
@@ -241,11 +261,11 @@ CREATE TABLE IF NOT EXISTS `result_5d` (
 -- Table: result_k3 - K3 bet results
 CREATE TABLE IF NOT EXISTS `result_k3` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `id_product` INT DEFAULT 0,
+  `id_product` VARCHAR(50) DEFAULT '',
   `phone` VARCHAR(20) NOT NULL,
   `code` VARCHAR(50) NOT NULL,
   `invite` VARCHAR(50) NOT NULL,
-  `stage` INT DEFAULT 0,
+  `stage` VARCHAR(50) DEFAULT '',
   `level` INT DEFAULT 0,
   `money` DECIMAL(10,2) DEFAULT 0,
   `price` DECIMAL(10,2) DEFAULT 0,
@@ -276,6 +296,10 @@ CREATE TABLE IF NOT EXISTS `admin` (
   `k5d3` VARCHAR(50) DEFAULT '-1',
   `k5d5` VARCHAR(50) DEFAULT '-1',
   `k5d10` VARCHAR(50) DEFAULT '-1',
+  `bs1` VARCHAR(50) DEFAULT '0',
+  `bs3` VARCHAR(50) DEFAULT '0',
+  `bs5` VARCHAR(50) DEFAULT '0',
+  `bs10` VARCHAR(50) DEFAULT '0',
   `win_rate` INT DEFAULT 80,
   `telegram` VARCHAR(255) DEFAULT '',
   `cskh` VARCHAR(255) DEFAULT '',

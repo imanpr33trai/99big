@@ -1,7 +1,6 @@
-import connection from "../config/connectDB.js";
-import jwt from "jsonwebtoken";
-import md5 from "md5";
 import dotenv from "dotenv";
+import md5 from "md5";
+import { safeExecute } from "../lib/utils.js";
 dotenv.config();
 
 let timeNow = Date.now();
@@ -90,7 +89,7 @@ const middlewareAdminController = async (req, res, next) => {
   if (!auth) {
     return res.redirect("/login");
   }
-  const [rows] = await connection.execute(
+  const [rows] = await safeExecute(
     "SELECT `token`,`level`, `status` FROM `users` WHERE `token` = ? AND veri = 1",
     [auth],
   );
@@ -128,22 +127,22 @@ const totalJoin = async (req, res) => {
   if (typeid == "3") game = "wingo5";
   if (typeid == "4") game = "wingo10";
 
-  const [rows] = await connection.query("SELECT * FROM users WHERE `token` = ? ", [auth]);
+  const [rows] = await safeExecute("SELECT * FROM users WHERE `token` = ? ", [auth]);
 
   if (rows.length > 0) {
-    const [wingoall] = await connection.query(
+    const [wingoall] = await safeExecute(
       `SELECT * FROM minutes_1 WHERE game = "${game}" AND status = 0 AND level = 0 ORDER BY id ASC `,
       [auth],
     );
-    const [winGo1] = await connection.execute(
+    const [winGo1] = await safeExecute(
       `SELECT * FROM wingo WHERE status = 0 AND game = '${game}' ORDER BY id DESC LIMIT 1 `,
       [],
     );
-    const [winGo10] = await connection.execute(
+    const [winGo10] = await safeExecute(
       `SELECT * FROM wingo WHERE status != 0 AND game = '${game}' ORDER BY id DESC LIMIT 10 `,
       [],
     );
-    const [setting] = await connection.execute(`SELECT * FROM admin `, []);
+    const [setting] = await safeExecute(`SELECT * FROM admin `, []);
 
     return res.status(200).json({
       message: "Success",
@@ -187,10 +186,10 @@ const listMember = async (req, res) => {
       status: false,
     });
   }
-  const [users] = await connection.query(
+  const [users] = await safeExecute(
     `SELECT * FROM users WHERE veri = 1 AND level != 2 ORDER BY id DESC LIMIT ${pageno}, ${limit} `,
   );
-  const [total_users] = await connection.query(`SELECT * FROM users WHERE veri = 1 AND level != 2`);
+  const [total_users] = await safeExecute(`SELECT * FROM users WHERE veri = 1 AND level != 2`);
   return res.status(200).json({
     message: "Success",
     status: true,
@@ -223,7 +222,7 @@ const listCTV = async (req, res) => {
       status: false,
     });
   }
-  const [wingo] = await connection.query(
+  const [wingo] = await safeExecute(
     `SELECT * FROM users WHERE veri = 1 AND level = 2 ORDER BY id DESC LIMIT ${pageno}, ${pageto} `,
   );
   return res.status(200).json({
@@ -237,7 +236,7 @@ const getPhoneByInvite = async (req, res) => {
   const invite = req.params.invite;
 
   try {
-    const [rows] = await connection.execute("SELECT phone FROM users WHERE code = ?", [invite]);
+    const [rows] = await safeExecute("SELECT phone FROM users WHERE code = ?", [invite]);
 
     if (rows.length > 0) {
       res.json({ phone: rows[0].phone });
@@ -253,7 +252,7 @@ const getUserByCode = async (req, res) => {
   const code = req.params.code;
 
   try {
-    const [countRows] = await connection.execute(
+    const [countRows] = await safeExecute(
       "SELECT COUNT(*) AS userCount FROM users WHERE invite = ?",
       [code],
     );
@@ -272,7 +271,7 @@ const getReferredUsers = async (req, res) => {
   const userCode = req.params.code;
 
   try {
-    const [rows] = await connection.execute("SELECT * FROM users WHERE invite = ?", [userCode]);
+    const [rows] = await safeExecute("SELECT * FROM users WHERE invite = ?", [userCode]);
 
     if (rows.length > 0) {
       res.json({ users: rows });
@@ -316,26 +315,22 @@ function timerJoin2(params = "", addHours = 0) {
 }
 
 const statistical2 = async (req, res) => {
-  const [wingo] = await connection.query(
-    `SELECT SUM(money) as total FROM minutes_1 WHERE status = 1 `,
-  );
-  const [wingo2] = await connection.query(
-    `SELECT SUM(money) as total FROM minutes_1 WHERE status = 2 `,
-  );
-  const [users] = await connection.query(`SELECT COUNT(id) as total FROM users WHERE status = 1 `);
-  const [users2] = await connection.query(`SELECT COUNT(id) as total FROM users WHERE status = 0 `);
-  const [recharge] = await connection.query(
+  const [wingo] = await safeExecute(`SELECT SUM(money) as total FROM minutes_1 WHERE status = 1 `);
+  const [wingo2] = await safeExecute(`SELECT SUM(money) as total FROM minutes_1 WHERE status = 2 `);
+  const [users] = await safeExecute(`SELECT COUNT(id) as total FROM users WHERE status = 1 `);
+  const [users2] = await safeExecute(`SELECT COUNT(id) as total FROM users WHERE status = 0 `);
+  const [recharge] = await safeExecute(
     `SELECT SUM(money) as total FROM recharge WHERE status = 1 `,
   );
-  const [withdraw] = await connection.query(
+  const [withdraw] = await safeExecute(
     `SELECT SUM(money) as total FROM withdraw WHERE status = 1 `,
   );
 
-  const [recharge_today] = await connection.query(
+  const [recharge_today] = await safeExecute(
     `SELECT SUM(money) as total FROM recharge WHERE status = 1 AND today = ?`,
     [timerJoin2()],
   );
-  const [withdraw_today] = await connection.query(
+  const [withdraw_today] = await safeExecute(
     `SELECT SUM(money) as total FROM withdraw WHERE status = 1 AND today = ?`,
     [timerJoin2()],
   );
@@ -392,7 +387,7 @@ const changeAdmin = async (req, res) => {
   }
   switch (type) {
     case "change-wingo1":
-      await connection.query(`UPDATE admin SET ${game} = ? `, [value]);
+      await safeExecute(`UPDATE admin SET ${game} = ? `, [value]);
       return res.status(200).json({
         message: "Editing results successfully",
         status: true,
@@ -400,7 +395,7 @@ const changeAdmin = async (req, res) => {
       });
       break;
     case "change-win_rate":
-      await connection.query(`UPDATE admin SET ${bs} = ? `, [value]);
+      await safeExecute(`UPDATE admin SET ${bs} = ? `, [value]);
       return res.status(200).json({
         message: "Editing win rate successfully",
         status: true,
@@ -460,7 +455,7 @@ const userInfo = async (req, res) => {
     });
   }
 
-  const [user] = await connection.query("SELECT * FROM users WHERE phone = ? ", [phone]);
+  const [user] = await safeExecute("SELECT * FROM users WHERE phone = ? ", [phone]);
 
   if (user.length == 0) {
     return res.status(200).json({
@@ -471,7 +466,7 @@ const userInfo = async (req, res) => {
   }
   let userInfo = user[0];
   // direct subordinate all
-  const [f1s] = await connection.query(
+  const [f1s] = await safeExecute(
     "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
     [userInfo.code],
   );
@@ -494,7 +489,7 @@ const userInfo = async (req, res) => {
     let check_f1 = timerJoin(f1_time) == timerJoin() ? true : false;
     if (check_f1) f_all_today += 1;
     // tổng f1 mời đc hôm nay
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
@@ -504,7 +499,7 @@ const userInfo = async (req, res) => {
       let check_f2 = timerJoin(f2_time) == timerJoin() ? true : false;
       if (check_f2) f_all_today += 1;
       // tổng f2 mời đc hôm nay
-      const [f3s] = await connection.query(
+      const [f3s] = await safeExecute(
         "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
         [f2_code],
       );
@@ -513,7 +508,7 @@ const userInfo = async (req, res) => {
         const f3_time = f3s[i].time; // time f3
         let check_f3 = timerJoin(f3_time) == timerJoin() ? true : false;
         if (check_f3) f_all_today += 1;
-        const [f4s] = await connection.query(
+        const [f4s] = await safeExecute(
           "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
           [f3_code],
         );
@@ -533,7 +528,7 @@ const userInfo = async (req, res) => {
   let f2 = 0;
   for (let i = 0; i < f1s.length; i++) {
     const f1_code = f1s[i].code; // Mã giới thiệu f1
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
@@ -544,13 +539,13 @@ const userInfo = async (req, res) => {
   let f3 = 0;
   for (let i = 0; i < f1s.length; i++) {
     const f1_code = f1s[i].code; // Mã giới thiệu f1
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
     for (let i = 0; i < f2s.length; i++) {
       const f2_code = f2s[i].code;
-      const [f3s] = await connection.query(
+      const [f3s] = await safeExecute(
         "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
         [f2_code],
       );
@@ -562,19 +557,19 @@ const userInfo = async (req, res) => {
   let f4 = 0;
   for (let i = 0; i < f1s.length; i++) {
     const f1_code = f1s[i].code; // Mã giới thiệu f1
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
     for (let i = 0; i < f2s.length; i++) {
       const f2_code = f2s[i].code;
-      const [f3s] = await connection.query(
+      const [f3s] = await safeExecute(
         "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
         [f2_code],
       );
       for (let i = 0; i < f3s.length; i++) {
         const f3_code = f3s[i].code;
-        const [f4s] = await connection.query(
+        const [f4s] = await safeExecute(
           "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
           [f3_code],
         );
@@ -588,21 +583,20 @@ const userInfo = async (req, res) => {
   // console.log("F3: " + f3);
   // console.log("F4: " + f4);
 
-  const [recharge] = await connection.query(
+  const [recharge] = await safeExecute(
     "SELECT SUM(`money`) as total FROM recharge WHERE phone = ? AND status = 1 ",
     [phone],
   );
-  const [withdraw] = await connection.query(
+  const [withdraw] = await safeExecute(
     "SELECT SUM(`money`) as total FROM withdraw WHERE phone = ? AND status = 1 ",
     [phone],
   );
-  const [bank_user] = await connection.query("SELECT * FROM user_bank WHERE phone = ? ", [phone]);
+  const [bank_user] = await safeExecute("SELECT * FROM user_bank WHERE phone = ? ", [phone]);
   // console.log(bank_user[0]);
-  const [telegram_ctv] = await connection.query(
-    "SELECT `telegram` FROM point_list WHERE phone = ? ",
-    [userInfo.ctv],
-  );
-  const [ng_moi] = await connection.query("SELECT `phone` FROM users WHERE code = ? ", [
+  const [telegram_ctv] = await safeExecute("SELECT `telegram` FROM point_list WHERE phone = ? ", [
+    userInfo.ctv,
+  ]);
+  const [ng_moi] = await safeExecute("SELECT `phone` FROM users WHERE code = ? ", [
     userInfo.invite,
   ]);
   return res.status(200).json({
@@ -632,10 +626,10 @@ const recharge = async (req, res) => {
     });
   }
 
-  const [recharge] = await connection.query("SELECT * FROM recharge WHERE status = 0 ");
-  const [recharge2] = await connection.query("SELECT * FROM recharge WHERE status != 0 ");
-  const [withdraw] = await connection.query("SELECT * FROM withdraw WHERE status = 0 ");
-  const [withdraw2] = await connection.query("SELECT * FROM withdraw WHERE status != 0 ");
+  const [recharge] = await safeExecute("SELECT * FROM recharge WHERE status = 0 ");
+  const [recharge2] = await safeExecute("SELECT * FROM recharge WHERE status != 0 ");
+  const [withdraw] = await safeExecute("SELECT * FROM withdraw WHERE status = 0 ");
+  const [withdraw2] = await safeExecute("SELECT * FROM withdraw WHERE status != 0 ");
   return res.status(200).json({
     message: "Success",
     status: true,
@@ -657,11 +651,11 @@ const settingGet = async (req, res) => {
       });
     }
 
-    const [bank_recharge] = await connection.query("SELECT * FROM bank_recharge");
-    const [bank_recharge_momo] = await connection.query(
+    const [bank_recharge] = await safeExecute("SELECT * FROM bank_recharge");
+    const [bank_recharge_momo] = await safeExecute(
       "SELECT * FROM bank_recharge WHERE type = 'momo'",
     );
-    const [settings] = await connection.query("SELECT * FROM admin ");
+    const [settings] = await safeExecute("SELECT * FROM admin ");
 
     let bank_recharge_momo_data;
     if (bank_recharge_momo.length) {
@@ -713,17 +707,15 @@ const rechargeDuyet = async (req, res) => {
     });
   }
   if (type == "confirm") {
-    await connection.query(`UPDATE recharge SET status = 1 WHERE id = ?`, [id]);
-    const [info] = await connection.query(`SELECT * FROM recharge WHERE id = ?`, [id]);
+    await safeExecute(`UPDATE recharge SET status = 1 WHERE id = ?`, [id]);
+    const [info] = await safeExecute(`SELECT * FROM recharge WHERE id = ?`, [id]);
 
     let money = info[0].money;
 
-    const [data_set] = await connection.query("SELECT * FROM users WHERE phone = ?", [
-      info[0].phone,
-    ]);
+    const [data_set] = await safeExecute("SELECT * FROM users WHERE phone = ?", [info[0].phone]);
     const existsInRecharge = data_set[0].first_deposit;
 
-    // const [[{ invite }]] = await connection.query('SELECT invite FROM users WHERE phone = ?', [info[0].phone]);
+    // const [[{ invite }]] = await safeExecute('SELECT invite FROM users WHERE phone = ?', [info[0].phone]);
     const invite = data_set[0].invite;
 
     let salary = 0;
@@ -735,40 +727,37 @@ const rechargeDuyet = async (req, res) => {
       salary = 150;
     }
 
-    const [agent] = await connection.query("SELECT * FROM users WHERE code = ?", [invite]);
+    const [agent] = await safeExecute("SELECT * FROM users WHERE code = ?", [invite]);
 
     const incrementPercentage = existsInRecharge == 1 ? 0.05 : 0.15;
-    await connection.query("UPDATE users SET first_deposit = ? WHERE phone = ?", [
-      1,
-      info[0].phone,
-    ]);
+    await safeExecute("UPDATE users SET first_deposit = ? WHERE phone = ?", [1, info[0].phone]);
 
     const tenPercent = 0.1 * money;
     money += money * incrementPercentage;
 
     const free_bonus = data_set[0].free_bonus;
-    // const [[{ free_bonus }]] = await connection.query('SELECT free_bonus FROM users WHERE phone = ?', [info[0].phone]);
+    // const [[{ free_bonus }]] = await safeExecute('SELECT free_bonus FROM users WHERE phone = ?', [info[0].phone]);
 
     if (free_bonus >= tenPercent) {
       money += tenPercent;
-      await connection.query("UPDATE users SET free_bonus = free_bonus - ? WHERE phone = ?", [
+      await safeExecute("UPDATE users SET free_bonus = free_bonus - ? WHERE phone = ?", [
         tenPercent,
         info[0].phone,
       ]);
     } else {
       money += free_bonus;
-      await connection.query("UPDATE users SET free_bonus = ? WHERE phone = ?", [0, info[0].phone]);
+      await safeExecute("UPDATE users SET free_bonus = ? WHERE phone = ?", [0, info[0].phone]);
     }
 
     const type = "Referral Bonus";
     const insertSalaryQuery = "INSERT INTO salary (phone, amount, type, time) VALUES (?, ?, ?, ?)";
-    await connection.execute(insertSalaryQuery, [agent[0].phone, salary, type, formattedTime]);
+    await safeExecute(insertSalaryQuery, [agent[0].phone, salary, type, formattedTime]);
 
-    await connection.query(
+    await safeExecute(
       "UPDATE users SET money = money + ?, total_money = total_money + ? WHERE phone = ?",
       [salary, salary, agent[0].phone],
     );
-    await connection.query(
+    await safeExecute(
       "UPDATE users SET money = money + ?, total_money = total_money + ? WHERE phone = ? ",
       [money, money, info[0].phone],
     );
@@ -779,7 +768,7 @@ const rechargeDuyet = async (req, res) => {
     });
   }
   if (type == "delete") {
-    await connection.query(`UPDATE recharge SET status = 2 WHERE id = ?`, [id]);
+    await safeExecute(`UPDATE recharge SET status = 2 WHERE id = ?`, [id]);
 
     return res.status(200).json({
       message: "Cancellation successful",
@@ -799,10 +788,13 @@ const updateLevel = async (req, res) => {
 
     console.log("level : " + id, f1, f2, f3, f4);
 
-    await connection.query(
-      "UPDATE `level` SET `f1`= ? ,`f2`= ? ,`f3`= ? ,`f4`= ?  WHERE `id` = ?",
-      [f1, f2, f3, f4, id],
-    );
+    await safeExecute("UPDATE `level` SET `f1`= ? ,`f2`= ? ,`f3`= ? ,`f4`= ?  WHERE `id` = ?", [
+      f1,
+      f2,
+      f3,
+      f4,
+      id,
+    ]);
 
     // Send a success response to the client
     res.status(200).json({
@@ -834,8 +826,8 @@ const handlWithdraw = async (req, res) => {
     });
   }
   if (type == "confirm") {
-    await connection.query(`UPDATE withdraw SET status = 1 WHERE id = ?`, [id]);
-    const [info] = await connection.query(`SELECT * FROM withdraw WHERE id = ?`, [id]);
+    await safeExecute(`UPDATE withdraw SET status = 1 WHERE id = ?`, [id]);
+    const [info] = await safeExecute(`SELECT * FROM withdraw WHERE id = ?`, [id]);
     return res.status(200).json({
       message: "Successful application confirmation",
       status: true,
@@ -843,9 +835,9 @@ const handlWithdraw = async (req, res) => {
     });
   }
   if (type == "delete") {
-    await connection.query(`UPDATE withdraw SET status = 2, remark = ? WHERE id = ?`, [remark, id]); // Update the status and remark
-    const [info] = await connection.query(`SELECT * FROM withdraw WHERE id = ?`, [id]);
-    await connection.query("UPDATE users SET money = money + ? WHERE phone = ? ", [
+    await safeExecute(`UPDATE withdraw SET status = 2, remark = ? WHERE id = ?`, [remark, id]); // Update the status and remark
+    const [info] = await safeExecute(`SELECT * FROM withdraw WHERE id = ?`, [id]);
+    await safeExecute("UPDATE users SET money = money + ? WHERE phone = ? ", [
       info[0].money,
       info[0].phone,
     ]);
@@ -874,7 +866,7 @@ const settingBank = async (req, res) => {
       });
     }
     if (typer == "bank") {
-      await connection.query(
+      await safeExecute(
         `UPDATE bank_recharge SET name_bank = ?, name_user = ?, stk = ? WHERE type = 'bank'`,
         [name_bank, name, info],
       );
@@ -886,9 +878,7 @@ const settingBank = async (req, res) => {
     }
 
     if (typer == "momo") {
-      const [bank_recharge] = await connection.query(
-        `SELECT * FROM bank_recharge WHERE type = 'momo'`,
-      );
+      const [bank_recharge] = await safeExecute(`SELECT * FROM bank_recharge WHERE type = 'momo'`);
 
       const deleteRechargeQueries = bank_recharge.map((recharge) => {
         return deleteBankRechargeById(recharge.id);
@@ -896,14 +886,14 @@ const settingBank = async (req, res) => {
 
       await Promise.all(deleteRechargeQueries);
 
-      // await connection.query(`UPDATE bank_recharge SET name_bank = ?, name_user = ?, stk = ?, qr_code_image = ? WHERE type = 'upi'`, [name_bank, name, info, qr]);
+      // await safeExecute(`UPDATE bank_recharge SET name_bank = ?, name_user = ?, stk = ?, qr_code_image = ? WHERE type = 'upi'`, [name_bank, name, info, qr]);
 
       const bankName = req.body.bank_name;
       const username = req.body.username;
       const upiId = req.body.upi_id;
       const usdtWalletAddress = req.body.usdt_wallet_address;
 
-      await connection.query(
+      await safeExecute(
         "INSERT INTO bank_recharge SET name_bank = ?, name_user = ?, stk = ?, qr_code_image = ?, type = 'momo'",
         [bankName, username, upiId, usdtWalletAddress],
       );
@@ -924,10 +914,9 @@ const settingBank = async (req, res) => {
 };
 
 const deleteBankRechargeById = async (id) => {
-  const [recharge] = await connection.query(
-    "DELETE FROM bank_recharge WHERE type = 'momo' AND id = ?",
-    [id],
-  );
+  const [recharge] = await safeExecute("DELETE FROM bank_recharge WHERE type = 'momo' AND id = ?", [
+    id,
+  ]);
 
   return recharge;
 };
@@ -944,7 +933,7 @@ const settingCskh = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  await connection.query(`UPDATE admin SET telegram = ?, cskh = ?, app = ?`, [
+  await safeExecute(`UPDATE admin SET telegram = ?, cskh = ?, app = ?`, [
     telegram,
     cskh,
     myapp_web,
@@ -967,10 +956,10 @@ const banned = async (req, res) => {
     });
   }
   if (type == "open") {
-    await connection.query(`UPDATE users SET status = 1 WHERE id = ?`, [id]);
+    await safeExecute(`UPDATE users SET status = 1 WHERE id = ?`, [id]);
   }
   if (type == "close") {
-    await connection.query(`UPDATE users SET status = 2 WHERE id = ?`, [id]);
+    await safeExecute(`UPDATE users SET status = 2 WHERE id = ?`, [id]);
   }
   return res.status(200).json({
     message: "Successful change",
@@ -1027,7 +1016,7 @@ const createBonus = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user] = await connection.query("SELECT * FROM users WHERE token = ? ", [auth]);
+  const [user] = await safeExecute("SELECT * FROM users WHERE token = ? ", [auth]);
 
   if (user.length == 0) {
     return res.status(200).json({
@@ -1041,9 +1030,9 @@ const createBonus = async (req, res) => {
   if (type == "all") {
     let select = req.body.select;
     if (select == "1") {
-      await connection.query(`UPDATE point_list SET money = money + ? WHERE level = 2`, [money]);
+      await safeExecute(`UPDATE point_list SET money = money + ? WHERE level = 2`, [money]);
     } else {
-      await connection.query(`UPDATE point_list SET money = money - ? WHERE level = 2`, [money]);
+      await safeExecute(`UPDATE point_list SET money = money - ? WHERE level = 2`, [money]);
     }
     return res.status(200).json({
       message: "successful change",
@@ -1054,13 +1043,9 @@ const createBonus = async (req, res) => {
   if (type == "two") {
     let select = req.body.select;
     if (select == "1") {
-      await connection.query(`UPDATE point_list SET money_us = money_us + ? WHERE level = 2`, [
-        money,
-      ]);
+      await safeExecute(`UPDATE point_list SET money_us = money_us + ? WHERE level = 2`, [money]);
     } else {
-      await connection.query(`UPDATE point_list SET money_us = money_us - ? WHERE level = 2`, [
-        money,
-      ]);
+      await safeExecute(`UPDATE point_list SET money_us = money_us - ? WHERE level = 2`, [money]);
     }
     return res.status(200).json({
       message: "successful change",
@@ -1071,7 +1056,7 @@ const createBonus = async (req, res) => {
   if (type == "one") {
     let select = req.body.select;
     let phone = req.body.phone;
-    const [user] = await connection.query("SELECT * FROM point_list WHERE phone = ? ", [phone]);
+    const [user] = await safeExecute("SELECT * FROM point_list WHERE phone = ? ", [phone]);
     if (user.length == 0) {
       return res.status(200).json({
         message: "Failed",
@@ -1080,15 +1065,15 @@ const createBonus = async (req, res) => {
       });
     }
     if (select == "1") {
-      await connection.query(
-        `UPDATE point_list SET money = money + ? WHERE level = 2 and phone = ?`,
-        [money, phone],
-      );
+      await safeExecute(`UPDATE point_list SET money = money + ? WHERE level = 2 and phone = ?`, [
+        money,
+        phone,
+      ]);
     } else {
-      await connection.query(
-        `UPDATE point_list SET money = money - ? WHERE level = 2 and phone = ?`,
-        [money, phone],
-      );
+      await safeExecute(`UPDATE point_list SET money = money - ? WHERE level = 2 and phone = ?`, [
+        money,
+        phone,
+      ]);
     }
     return res.status(200).json({
       message: "successful change",
@@ -1099,7 +1084,7 @@ const createBonus = async (req, res) => {
   if (type == "three") {
     let select = req.body.select;
     let phone = req.body.phone;
-    const [user] = await connection.query("SELECT * FROM point_list WHERE phone = ? ", [phone]);
+    const [user] = await safeExecute("SELECT * FROM point_list WHERE phone = ? ", [phone]);
     if (user.length == 0) {
       return res.status(200).json({
         message: "account does not exist",
@@ -1108,12 +1093,12 @@ const createBonus = async (req, res) => {
       });
     }
     if (select == "1") {
-      await connection.query(
+      await safeExecute(
         `UPDATE point_list SET money_us = money_us + ? WHERE level = 2 and phone = ?`,
         [money, phone],
       );
     } else {
-      await connection.query(
+      await safeExecute(
         `UPDATE point_list SET money_us = money_us - ? WHERE level = 2 and phone = ?`,
         [money, phone],
       );
@@ -1127,7 +1112,7 @@ const createBonus = async (req, res) => {
   if (!type) {
     let id_redenvelops = randomString(16);
     let sql = `INSERT INTO redenvelopes SET id_redenvelope = ?, phone = ?, money = ?, used = ?, amount = ?, status = ?, time = ?`;
-    await connection.query(sql, [id_redenvelops, userInfo.phone, money, 1, 1, 0, time]);
+    await safeExecute(sql, [id_redenvelops, userInfo.phone, money, 1, 1, 0, time]);
     return res.status(200).json({
       message: "Successful change",
       status: true,
@@ -1139,7 +1124,7 @@ const createBonus = async (req, res) => {
 const listRedenvelops = async (req, res) => {
   let auth = req.cookies.auth;
 
-  let [redenvelopes] = await connection.query("SELECT * FROM redenvelopes WHERE status = 0 ");
+  let [redenvelopes] = await safeExecute("SELECT * FROM redenvelopes WHERE status = 0 ");
   return res.status(200).json({
     message: "Successful change",
     status: true,
@@ -1159,17 +1144,17 @@ const settingbuff = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  const [user_id] = await connection.query(`SELECT * FROM users WHERE id_user = ?`, [id_user]);
+  const [user_id] = await safeExecute(`SELECT * FROM users WHERE id_user = ?`, [id_user]);
 
   if (user_id.length > 0) {
     if (buff_acc == "1") {
-      await connection.query(`UPDATE users SET money = money + ? WHERE id_user = ?`, [
+      await safeExecute(`UPDATE users SET money = money + ? WHERE id_user = ?`, [
         money_value,
         id_user,
       ]);
     }
     if (buff_acc == "2") {
-      await connection.query(`UPDATE users SET money = money - ? WHERE id_user = ?`, [
+      await safeExecute(`UPDATE users SET money = money - ? WHERE id_user = ?`, [
         money_value,
         id_user,
       ]);
@@ -1242,14 +1227,14 @@ const register = async (req, res) => {
   }
 
   try {
-    const [check_u] = await connection.query("SELECT * FROM users WHERE phone = ? ", [username]);
+    const [check_u] = await safeExecute("SELECT * FROM users WHERE phone = ? ", [username]);
     if (check_u.length == 1) {
       return res.status(200).json({
         message: "register account", //Số điện thoại đã được đăng ký
         status: false,
       });
     } else {
-      const sql = `INSERT INTO users SET 
+      const sql = `INSERT INTO users SET
             id_user = ?,
             phone = ?,
             name_user = ?,
@@ -1262,7 +1247,7 @@ const register = async (req, res) => {
             ip_address = ?,
             status = ?,
             time = ?`;
-      await connection.execute(sql, [
+      await safeExecute(sql, [
         id_user,
         username,
         name_user,
@@ -1276,7 +1261,7 @@ const register = async (req, res) => {
         1,
         time,
       ]);
-      await connection.execute("INSERT INTO point_list SET phone = ?, level = 2", [username]);
+      await safeExecute("INSERT INTO point_list SET phone = ?, level = 2", [username]);
       return res.status(200).json({
         message: "registration success", //Register Sucess
         status: true,
@@ -1296,7 +1281,7 @@ const profileUser = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  let [user] = await connection.query(`SELECT * FROM users WHERE phone = ?`, [phone]);
+  let [user] = await safeExecute(`SELECT * FROM users WHERE phone = ?`, [phone]);
 
   if (user.length == 0) {
     return res.status(200).json({
@@ -1305,11 +1290,11 @@ const profileUser = async (req, res) => {
       timeStamp: timeNow,
     });
   }
-  let [recharge] = await connection.query(
+  let [recharge] = await safeExecute(
     `SELECT * FROM recharge WHERE phone = ? ORDER BY id DESC LIMIT 10`,
     [phone],
   );
-  let [withdraw] = await connection.query(
+  let [withdraw] = await safeExecute(
     `SELECT * FROM withdraw WHERE phone = ? ORDER BY id DESC LIMIT 10`,
     [phone],
   );
@@ -1324,7 +1309,7 @@ const profileUser = async (req, res) => {
 const infoCtv = async (req, res) => {
   const phone = req.body.phone;
 
-  const [user] = await connection.query("SELECT * FROM users WHERE phone = ? ", [phone]);
+  const [user] = await safeExecute("SELECT * FROM users WHERE phone = ? ", [phone]);
 
   if (user.length == 0) {
     return res.status(200).json({
@@ -1334,7 +1319,7 @@ const infoCtv = async (req, res) => {
   }
   let userInfo = user[0];
   // cấp dưới trực tiếp all
-  const [f1s] = await connection.query(
+  const [f1s] = await safeExecute(
     "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
     [userInfo.code],
   );
@@ -1357,7 +1342,7 @@ const infoCtv = async (req, res) => {
     let check_f1 = timerJoin(f1_time) == timerJoin() ? true : false;
     if (check_f1) f_all_today += 1;
     // tổng f1 mời đc hôm nay
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
@@ -1367,7 +1352,7 @@ const infoCtv = async (req, res) => {
       let check_f2 = timerJoin(f2_time) == timerJoin() ? true : false;
       if (check_f2) f_all_today += 1;
       // tổng f2 mời đc hôm nay
-      const [f3s] = await connection.query(
+      const [f3s] = await safeExecute(
         "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
         [f2_code],
       );
@@ -1376,7 +1361,7 @@ const infoCtv = async (req, res) => {
         const f3_time = f3s[i].time; // time f3
         let check_f3 = timerJoin(f3_time) == timerJoin() ? true : false;
         if (check_f3) f_all_today += 1;
-        const [f4s] = await connection.query(
+        const [f4s] = await safeExecute(
           "SELECT `phone`, `code`,`invite`, `time` FROM users WHERE `invite` = ? ",
           [f3_code],
         );
@@ -1396,7 +1381,7 @@ const infoCtv = async (req, res) => {
   let f2 = 0;
   for (let i = 0; i < f1s.length; i++) {
     const f1_code = f1s[i].code; // Mã giới thiệu f1
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
@@ -1407,13 +1392,13 @@ const infoCtv = async (req, res) => {
   let f3 = 0;
   for (let i = 0; i < f1s.length; i++) {
     const f1_code = f1s[i].code; // Mã giới thiệu f1
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
     for (let i = 0; i < f2s.length; i++) {
       const f2_code = f2s[i].code;
-      const [f3s] = await connection.query(
+      const [f3s] = await safeExecute(
         "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
         [f2_code],
       );
@@ -1425,19 +1410,19 @@ const infoCtv = async (req, res) => {
   let f4 = 0;
   for (let i = 0; i < f1s.length; i++) {
     const f1_code = f1s[i].code; // Mã giới thiệu f1
-    const [f2s] = await connection.query(
+    const [f2s] = await safeExecute(
       "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
       [f1_code],
     );
     for (let i = 0; i < f2s.length; i++) {
       const f2_code = f2s[i].code;
-      const [f3s] = await connection.query(
+      const [f3s] = await safeExecute(
         "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
         [f2_code],
       );
       for (let i = 0; i < f3s.length; i++) {
         const f3_code = f3s[i].code;
-        const [f4s] = await connection.query(
+        const [f4s] = await safeExecute(
           "SELECT `phone`, `code`,`invite` FROM users WHERE `invite` = ? ",
           [f3_code],
         );
@@ -1446,11 +1431,11 @@ const infoCtv = async (req, res) => {
     }
   }
 
-  const [list_mem] = await connection.query(
+  const [list_mem] = await safeExecute(
     "SELECT * FROM users WHERE ctv = ? AND status = 1 AND veri = 1 ",
     [phone],
   );
-  const [list_mem_baned] = await connection.query(
+  const [list_mem_baned] = await safeExecute(
     "SELECT * FROM users WHERE ctv = ? AND status = 2 AND veri = 1 ",
     [phone],
   );
@@ -1458,11 +1443,11 @@ const infoCtv = async (req, res) => {
   let total_withdraw = 0;
   for (let i = 0; i < list_mem.length; i++) {
     let phone = list_mem[i].phone;
-    const [recharge] = await connection.query(
+    const [recharge] = await safeExecute(
       "SELECT SUM(money) as money FROM recharge WHERE phone = ? AND status = 1 ",
       [phone],
     );
-    const [withdraw] = await connection.query(
+    const [withdraw] = await safeExecute(
       "SELECT SUM(money) as money FROM withdraw WHERE phone = ? AND status = 1 ",
       [phone],
     );
@@ -1478,11 +1463,11 @@ const infoCtv = async (req, res) => {
   let total_withdraw_today = 0;
   for (let i = 0; i < list_mem.length; i++) {
     let phone = list_mem[i].phone;
-    const [recharge_today] = await connection.query(
+    const [recharge_today] = await safeExecute(
       "SELECT `money`, `time` FROM recharge WHERE phone = ? AND status = 1 ",
       [phone],
     );
-    const [withdraw_today] = await connection.query(
+    const [withdraw_today] = await safeExecute(
       "SELECT `money`, `time` FROM withdraw WHERE phone = ? AND status = 1 ",
       [phone],
     );
@@ -1506,11 +1491,11 @@ const infoCtv = async (req, res) => {
   let loss = 0;
   for (let i = 0; i < list_mem.length; i++) {
     let phone = list_mem[i].phone;
-    const [wins] = await connection.query(
+    const [wins] = await safeExecute(
       "SELECT `money`, `time` FROM minutes_1 WHERE phone = ? AND status = 1 ",
       [phone],
     );
-    const [losses] = await connection.query(
+    const [losses] = await safeExecute(
       "SELECT `money`, `time` FROM minutes_1 WHERE phone = ? AND status = 2 ",
       [phone],
     );
@@ -1530,7 +1515,7 @@ const infoCtv = async (req, res) => {
     }
   }
   let list_mems = [];
-  const [list_mem_today] = await connection.query(
+  const [list_mem_today] = await safeExecute(
     "SELECT * FROM users WHERE ctv = ? AND status = 1 AND veri = 1 ",
     [phone],
   );
@@ -1542,18 +1527,18 @@ const infoCtv = async (req, res) => {
     }
   }
 
-  const [point_list] = await connection.query("SELECT * FROM point_list WHERE phone = ? ", [phone]);
+  const [point_list] = await safeExecute("SELECT * FROM point_list WHERE phone = ? ", [phone]);
   let moneyCTV = point_list[0].money;
 
   let list_recharge_news = [];
   let list_withdraw_news = [];
   for (let i = 0; i < list_mem.length; i++) {
     let phone = list_mem[i].phone;
-    const [recharge_today] = await connection.query(
+    const [recharge_today] = await safeExecute(
       "SELECT `id`, `status`, `type`,`phone`, `money`, `time` FROM recharge WHERE phone = ? AND status = 1 ",
       [phone],
     );
-    const [withdraw_today] = await connection.query(
+    const [withdraw_today] = await safeExecute(
       "SELECT `id`, `status`,`phone`, `money`, `time` FROM withdraw WHERE phone = ? AND status = 1 ",
       [phone],
     );
@@ -1573,7 +1558,7 @@ const infoCtv = async (req, res) => {
     }
   }
 
-  const [redenvelopes_used] = await connection.query(
+  const [redenvelopes_used] = await safeExecute(
     "SELECT * FROM redenvelopes_used WHERE phone = ? ",
     [phone],
   );
@@ -1586,7 +1571,7 @@ const infoCtv = async (req, res) => {
     }
   }
 
-  const [financial_details] = await connection.query(
+  const [financial_details] = await safeExecute(
     "SELECT * FROM financial_details WHERE phone = ? ",
     [phone],
   );
@@ -1653,7 +1638,7 @@ const infoCtv2 = async (req, res) => {
     );
   }
 
-  const [user] = await connection.query("SELECT * FROM users WHERE phone = ? ", [phone]);
+  const [user] = await safeExecute("SELECT * FROM users WHERE phone = ? ", [phone]);
 
   if (user.length == 0) {
     return res.status(200).json({
@@ -1662,13 +1647,13 @@ const infoCtv2 = async (req, res) => {
     });
   }
   let userInfo = user[0];
-  const [list_mem] = await connection.query(
+  const [list_mem] = await safeExecute(
     "SELECT * FROM users WHERE ctv = ? AND status = 1 AND veri = 1 ",
     [phone],
   );
 
   let list_mems = [];
-  const [list_mem_today] = await connection.query(
+  const [list_mem_today] = await safeExecute(
     "SELECT * FROM users WHERE ctv = ? AND status = 1 AND veri = 1 ",
     [phone],
   );
@@ -1684,11 +1669,11 @@ const infoCtv2 = async (req, res) => {
   let list_withdraw_news = [];
   for (let i = 0; i < list_mem.length; i++) {
     let phone = list_mem[i].phone;
-    const [recharge_today] = await connection.query(
+    const [recharge_today] = await safeExecute(
       "SELECT `id`, `status`, `type`,`phone`, `money`, `time` FROM recharge WHERE phone = ? AND status = 1 ",
       [phone],
     );
-    const [withdraw_today] = await connection.query(
+    const [withdraw_today] = await safeExecute(
       "SELECT `id`, `status`,`phone`, `money`, `time` FROM withdraw WHERE phone = ? AND status = 1 ",
       [phone],
     );
@@ -1708,7 +1693,7 @@ const infoCtv2 = async (req, res) => {
     }
   }
 
-  const [redenvelopes_used] = await connection.query(
+  const [redenvelopes_used] = await safeExecute(
     "SELECT * FROM redenvelopes_used WHERE phone = ? ",
     [phone],
   );
@@ -1721,7 +1706,7 @@ const infoCtv2 = async (req, res) => {
     }
   }
 
-  const [financial_details] = await connection.query(
+  const [financial_details] = await safeExecute(
     "SELECT * FROM financial_details WHERE phone = ? ",
     [phone],
   );
@@ -1781,8 +1766,8 @@ const listRechargeMem = async (req, res) => {
     });
   }
 
-  const [user] = await connection.query("SELECT * FROM users WHERE phone = ? ", [phone]);
-  const [auths] = await connection.query("SELECT * FROM users WHERE token = ? ", [auth]);
+  const [user] = await safeExecute("SELECT * FROM users WHERE phone = ? ", [phone]);
+  const [auths] = await safeExecute("SELECT * FROM users WHERE token = ? ", [auth]);
 
   if (user.length == 0 || auths.length == 0) {
     return res.status(200).json({
@@ -1793,11 +1778,11 @@ const listRechargeMem = async (req, res) => {
   }
   let { token, password, otp, level, ...userInfo } = user[0];
 
-  const [recharge] = await connection.query(
+  const [recharge] = await safeExecute(
     `SELECT * FROM recharge WHERE phone = ? ORDER BY id DESC LIMIT ${pageno}, ${limit} `,
     [phone],
   );
-  const [total_users] = await connection.query(`SELECT * FROM recharge WHERE phone = ?`, [phone]);
+  const [total_users] = await safeExecute(`SELECT * FROM recharge WHERE phone = ?`, [phone]);
   return res.status(200).json({
     message: "Success",
     status: true,
@@ -1841,8 +1826,8 @@ const listWithdrawMem = async (req, res) => {
     });
   }
 
-  const [user] = await connection.query("SELECT * FROM users WHERE phone = ? ", [phone]);
-  const [auths] = await connection.query("SELECT * FROM users WHERE token = ? ", [auth]);
+  const [user] = await safeExecute("SELECT * FROM users WHERE phone = ? ", [phone]);
+  const [auths] = await safeExecute("SELECT * FROM users WHERE token = ? ", [auth]);
 
   if (user.length == 0 || auths.length == 0) {
     return res.status(200).json({
@@ -1853,11 +1838,11 @@ const listWithdrawMem = async (req, res) => {
   }
   let { token, password, otp, level, ...userInfo } = user[0];
 
-  const [withdraw] = await connection.query(
+  const [withdraw] = await safeExecute(
     `SELECT * FROM withdraw WHERE phone = ? ORDER BY id DESC LIMIT ${pageno}, ${limit} `,
     [phone],
   );
-  const [total_users] = await connection.query(`SELECT * FROM withdraw WHERE phone = ?`, [phone]);
+  const [total_users] = await safeExecute(`SELECT * FROM withdraw WHERE phone = ?`, [phone]);
   return res.status(200).json({
     message: "Success",
     status: true,
@@ -1901,8 +1886,8 @@ const listRedenvelope = async (req, res) => {
     });
   }
 
-  const [user] = await connection.query("SELECT * FROM users WHERE phone = ? ", [phone]);
-  const [auths] = await connection.query("SELECT * FROM users WHERE token = ? ", [auth]);
+  const [user] = await safeExecute("SELECT * FROM users WHERE phone = ? ", [phone]);
+  const [auths] = await safeExecute("SELECT * FROM users WHERE token = ? ", [auth]);
 
   if (user.length == 0 || auths.length == 0) {
     return res.status(200).json({
@@ -1913,14 +1898,13 @@ const listRedenvelope = async (req, res) => {
   }
   let { token, password, otp, level, ...userInfo } = user[0];
 
-  const [redenvelopes_used] = await connection.query(
+  const [redenvelopes_used] = await safeExecute(
     `SELECT * FROM redenvelopes_used WHERE phone_used = ? ORDER BY id DESC LIMIT ${pageno}, ${limit} `,
     [phone],
   );
-  const [total_users] = await connection.query(
-    `SELECT * FROM redenvelopes_used WHERE phone_used = ?`,
-    [phone],
-  );
+  const [total_users] = await safeExecute(`SELECT * FROM redenvelopes_used WHERE phone_used = ?`, [
+    phone,
+  ]);
   return res.status(200).json({
     message: "Success",
     status: true,
@@ -1931,7 +1915,7 @@ const listRedenvelope = async (req, res) => {
 // Level Setting get
 
 const getLevelInfo = async (req, res) => {
-  const [rows] = await connection.query("SELECT * FROM `level`");
+  const [rows] = await safeExecute("SELECT * FROM `level`");
 
   if (!rows) {
     return res.status(200).json({
@@ -1947,12 +1931,12 @@ const getLevelInfo = async (req, res) => {
     rows: rows,
   });
 
-  // const [recharge] = await connection.query('SELECT * FROM recharge WHERE `phone` = ? AND status = 1', [rows[0].phone]);
+  // const [recharge] = await safeExecute('SELECT * FROM recharge WHERE `phone` = ? AND status = 1', [rows[0].phone]);
   // let totalRecharge = 0;
   // recharge.forEach((data) => {
   //     totalRecharge += data.money;
   // });
-  // const [withdraw] = await connection.query('SELECT * FROM withdraw WHERE `phone` = ? AND status = 1', [rows[0].phone]);
+  // const [withdraw] = await safeExecute('SELECT * FROM withdraw WHERE `phone` = ? AND status = 1', [rows[0].phone]);
   // let totalWithdraw = 0;
   // withdraw.forEach((data) => {
   //     totalWithdraw += data.money;
@@ -2010,8 +1994,8 @@ const listBet = async (req, res) => {
     });
   }
 
-  const [user] = await connection.query("SELECT * FROM users WHERE phone = ? ", [phone]);
-  const [auths] = await connection.query("SELECT * FROM users WHERE token = ? ", [auth]);
+  const [user] = await safeExecute("SELECT * FROM users WHERE phone = ? ", [phone]);
+  const [auths] = await safeExecute("SELECT * FROM users WHERE token = ? ", [auth]);
 
   if (user.length == 0 || auths.length == 0) {
     return res.status(200).json({
@@ -2022,11 +2006,11 @@ const listBet = async (req, res) => {
   }
   let { token, password, otp, level, ...userInfo } = user[0];
 
-  const [listBet] = await connection.query(
+  const [listBet] = await safeExecute(
     `SELECT * FROM minutes_1 WHERE phone = ? AND status != 0 ORDER BY id DESC LIMIT ${pageno}, ${limit} `,
     [phone],
   );
-  const [total_users] = await connection.query(
+  const [total_users] = await safeExecute(
     `SELECT * FROM minutes_1 WHERE phone = ? AND status != 0`,
     [phone],
   );
@@ -2060,16 +2044,16 @@ const listOrderOld = async (req, res) => {
   if (game == 5) join = "k5d5";
   if (game == 10) join = "k5d10";
 
-  const [k5d] = await connection.query(
+  const [k5d] = await safeExecute(
     `SELECT * FROM 5d WHERE status != 0 AND game = '${game}' ORDER BY id DESC LIMIT 10 `,
   );
-  const [period] = await connection.query(
+  const [period] = await safeExecute(
     `SELECT period FROM 5d WHERE status = 0 AND game = '${game}' ORDER BY id DESC LIMIT 1 `,
   );
-  const [waiting] = await connection.query(
+  const [waiting] = await safeExecute(
     `SELECT phone, money, price, amount, bet FROM result_5d WHERE status = 0 AND level = 0 AND game = '${game}' ORDER BY id ASC `,
   );
-  const [settings] = await connection.query(`SELECT ${join} FROM admin`);
+  const [settings] = await safeExecute(`SELECT ${join} FROM admin`);
   if (k5d.length == 0) {
     return res.status(200).json({
       code: 0,
@@ -2122,16 +2106,16 @@ const listOrderOldK3 = async (req, res) => {
   if (game == 5) join = "k3d5";
   if (game == 10) join = "k3d10";
 
-  const [k5d] = await connection.query(
+  const [k5d] = await safeExecute(
     `SELECT * FROM k3 WHERE status != 0 AND game = '${game}' ORDER BY id DESC LIMIT 10 `,
   );
-  const [period] = await connection.query(
+  const [period] = await safeExecute(
     `SELECT period FROM k3 WHERE status = 0 AND game = '${game}' ORDER BY id DESC LIMIT 1 `,
   );
-  const [waiting] = await connection.query(
+  const [waiting] = await safeExecute(
     `SELECT phone, money, price, typeGame, amount, bet FROM result_k3 WHERE status = 0 AND level = 0 AND game = '${game}' ORDER BY id ASC `,
   );
-  const [settings] = await connection.query(`SELECT ${join} FROM admin`);
+  const [settings] = await safeExecute(`SELECT ${join} FROM admin`);
   if (k5d.length == 0) {
     return res.status(200).json({
       code: 0,
@@ -2179,7 +2163,7 @@ const editResult = async (req, res) => {
   if (game == 10) join = "k5d10";
 
   const sql = `UPDATE admin SET ${join} = ?`;
-  await connection.execute(sql, [list]);
+  await safeExecute(sql, [list]);
   return res.status(200).json({
     message: "Editing is successful", //Register Sucess
     status: true,
@@ -2203,7 +2187,7 @@ const editResult2 = async (req, res) => {
   if (game == 10) join = "k3d10";
 
   const sql = `UPDATE admin SET ${join} = ?`;
-  await connection.execute(sql, [list]);
+  await safeExecute(sql, [list]);
   return res.status(200).json({
     message: "Editing is successful", //Register Sucess
     status: true,
@@ -2236,7 +2220,7 @@ const CreatedSalary = async (req, res) => {
 
     // Check if user with the given phone number exists
     const checkUserQuery = "SELECT * FROM `users` WHERE phone = ?";
-    const [existingUser] = await connection.execute(checkUserQuery, [phone]);
+    const [existingUser] = await safeExecute(checkUserQuery, [phone]);
 
     if (existingUser.length === 0) {
       // If user doesn't exist, return an error
@@ -2248,11 +2232,11 @@ const CreatedSalary = async (req, res) => {
 
     // If user exists, update the 'users' table
     const updateUserQuery = "UPDATE `users` SET `money` = `money` + ? WHERE phone = ?";
-    await connection.execute(updateUserQuery, [amount, phone]);
+    await safeExecute(updateUserQuery, [amount, phone]);
 
     // Insert record into 'salary' table
     const insertSalaryQuery = "INSERT INTO salary (phone, amount, type, time) VALUES (?, ?, ?, ?)";
-    await connection.execute(insertSalaryQuery, [phone, amount, type, formattedTime]);
+    await safeExecute(insertSalaryQuery, [phone, amount, type, formattedTime]);
 
     res.status(200).json({ message: "Salary record created successfully" });
   } catch (error) {
@@ -2262,7 +2246,7 @@ const CreatedSalary = async (req, res) => {
 };
 
 const getSalary = async (req, res) => {
-  const [rows] = await connection.query(`SELECT * FROM salary ORDER BY time DESC`);
+  const [rows] = await safeExecute(`SELECT * FROM salary ORDER BY time DESC`);
 
   if (!rows) {
     return res.status(200).json({

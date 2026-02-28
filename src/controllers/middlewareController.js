@@ -1,11 +1,11 @@
-import connection from "../config/connectDB.js";
+import { safeExecute } from "../lib/utils.js";
 
 const middlewareController = async (req, res, next) => {
   // xác nhận token
   const auth = req.cookies.auth;
   if (!auth) return res.redirect("/login");
   try {
-    const [rows] = await connection.execute(
+    const [rows] = await safeExecute(
       "SELECT `token`, `status` FROM `users` WHERE `token` = ? AND `veri` = 1",
       [auth],
     );
