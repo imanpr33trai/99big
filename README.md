@@ -22,18 +22,25 @@ A multi-game lottery platform built with Node.js, Express, MySQL, and Socket.IO.
 
 ## 📦 Installation
 
+### Option 1: Without Docker
+
 ```bash
 # Install dependencies
-yarn install
+pnpm install
 
 # Setup database (run schema.sql)
-mysql -u 99bigdaddy -p99bigdaddy 99bigdaddy < src/config/schema.sql
+
+docker compose up db
+
+pnpm database
+
+pnpm db:init
 
 # Initialize database with seed data
 yarn database
 
 # Start server
-yarn start
+pnpm start
 ```
 
 Server runs on: **http://localhost:3016**
